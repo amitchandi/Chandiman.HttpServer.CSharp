@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using Chandiman.Extensions;
 
 namespace Chandiman.HttpServer;
@@ -18,7 +19,9 @@ public static class Server
 
     public static Action<Session, HttpListenerContext> onRequest;
 
-    public static Func<ServerError, string?> OnError { get; set; }
+    public static Func<ServerError, string> OnError { get; set; }
+
+    public static string? PublicIP;
 
     /// <summary>
     /// Returns list of IP addresses assigned to localhost network devices, such as hardwired ethernet, wireless, etc.
@@ -32,9 +35,18 @@ public static class Server
         return ret;
     }
 
+    public static string GetExternalIP()
+    {
+        string externalIP;
+        externalIP = (new WebClient()).DownloadString("http://checkip.dyndns.org/");
+        externalIP = (new Regex(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")).Matches(externalIP)[0].ToString();
+
+        return externalIP;
+    }
+
     private static HttpListener InitializeListener(List<IPAddress> localhostIPs)
     {
-        HttpListener listener = new();
+        listener = new();
         listener.Prefixes.Add("http://localhost/");
 
         // Listen to IP address as well.
@@ -75,7 +87,7 @@ public static class Server
     /// </summary>
     private static async void StartConnectionListener(HttpListener listener)
     {
-        ResponsePacket resp = null;
+        ResponsePacket resp;
 
         // Wait for a connection. Return to caller while we wait.
         HttpListenerContext context = await listener.GetContextAsync();
@@ -92,9 +104,9 @@ public static class Server
 
         try
         {
-            string path = request.RawUrl.LeftOf("?"); // Only the path, not any of the parameters
+            string path = request.RawUrl!.LeftOf("?"); // Only the path, not any of the parameters
             string verb = request.HttpMethod; // get, post, delete, etc.
-            string parms = request.RawUrl.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
+            string parms = request.RawUrl!.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
             
             Dictionary<string, string> kvParams = GetKeyValues(parms); // Extract into key-value entries.
             string data = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
@@ -145,12 +157,12 @@ public static class Server
         Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + request.Url?.AbsoluteUri.RightOf('/', 3));
     }
 
-    private static Dictionary<string, string> GetKeyValues(string data, Dictionary<string, string> kv = null)
+    private static Dictionary<string, string> GetKeyValues(string data, Dictionary<string, string>? kv = null)
     {
         kv.IfNull(() => kv = new Dictionary<string, string>());
-        data.If(d => d.Length > 0, (d) => d.Split('&').ForEach(keyValue => kv[keyValue.LeftOf('=')] = keyValue.RightOf('=')));
+        data.If(d => d.Length > 0, (d) => d.Split('&').ForEach(keyValue => kv![keyValue.LeftOf('=')] = keyValue.RightOf('=')));
 
-        return kv;
+        return kv!;
     }
 
     private static void Log(Dictionary<string, string> kv)
@@ -160,10 +172,10 @@ public static class Server
 
     private static void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket resp)
     {
-        if (String.IsNullOrEmpty(resp.Redirect))
+        if (string.IsNullOrEmpty(resp.Redirect))
         {
             response.ContentType = resp.ContentType;
-            response.ContentLength64 = resp.Data.Length;
+            response.ContentLength64 = resp.Data!.Length;
             response.OutputStream.Write(resp.Data, 0, resp.Data.Length);
             response.ContentEncoding = resp.Encoding;
             response.StatusCode = (int)HttpStatusCode.OK;
@@ -171,9 +183,17 @@ public static class Server
         else
         {
             response.StatusCode = (int)HttpStatusCode.Redirect;
-            response.Redirect("http://" + request.UserHostAddress + resp.Redirect);
-        }
 
+            if (string.IsNullOrEmpty(PublicIP))
+            {
+                response.Redirect("http://" + request.UserHostAddress + resp.Redirect);
+            }
+            else
+            {
+                response.Redirect("http://" + PublicIP + resp.Redirect);
+            }
+        }
+        
         response.OutputStream.Close();
     }
 
@@ -186,6 +206,8 @@ public static class Server
         PageNotFound,
         ServerError,
         UnknownType,
+        ValidationError,
+        AjaxError,
     }
 
     public static void AddRoute(Route route) => router.AddRoute(route);
@@ -193,10 +215,26 @@ public static class Server
     /// <summary>
     /// Return a ResponsePacket with the specified URL and an optional (singular) parameter.
     /// </summary>
-    public static ResponsePacket Redirect(string url, string parm = null)
+    public static ResponsePacket Redirect(string url, string? parm = null)
     {
         ResponsePacket ret = new ResponsePacket() { Redirect = url };
         parm.IfNotNull((p) => ret.Redirect += "?" + p);
+
+        return ret;
+    }
+
+    public static string ValidationTokenScript = "<%AntiForgeryToken%>";
+    public static string ValidationTokenName = "__CSRFToken__";
+
+    public static string PostProcess(Session session, string html)
+    {
+        string ret = html.Replace(ValidationTokenScript,
+        "<input name='" +
+        ValidationTokenName +
+        "' type='hidden' value='" +
+        session.Objects[ValidationTokenName]?.ToString() +
+        " id='#__csrf__'" +
+        "/>");
 
         return ret;
     }

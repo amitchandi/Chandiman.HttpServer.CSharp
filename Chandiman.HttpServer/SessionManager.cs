@@ -15,12 +15,25 @@ public class Session
     /// <summary>
     /// Can be used by controllers to add additional information that needs to persist in the session.
     /// </summary>
-    public Dictionary<string, string> Objects { get; set; }
+    public Dictionary<string, object?> Objects { get; set; }
 
     public Session()
     {
-        Objects = new Dictionary<string, string>();
+        Objects = [];
         UpdateLastConnectionTime();
+    }
+
+    // Indexer for accessing session objects.  If an object isn't found, null is returned.
+    public object? this[string objectKey]
+    {
+        get
+        {
+            Objects.TryGetValue(objectKey, out object? val);
+
+            return val;
+        }
+
+        set { Objects[objectKey] = value; }
     }
 
     public void UpdateLastConnectionTime()
@@ -58,7 +71,13 @@ public class SessionManager
     public Session GetSession(IPEndPoint remoteEndPoint)
     {
         // The port is always changing on the remote endpoint, so we can only use IP portion.
-        Session session = sessionMap.CreateOrGet(remoteEndPoint.Address);
+
+        if (!sessionMap.TryGetValue(remoteEndPoint.Address, out Session? session))
+        {
+            session = new Session();
+            session.Objects[Server.ValidationTokenName] = Guid.NewGuid().ToString();
+            sessionMap[remoteEndPoint.Address] = session;
+        }
 
         return session;
     }

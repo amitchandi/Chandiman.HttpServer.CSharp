@@ -55,6 +55,7 @@ public class Router
     private ResponsePacket FileLoader(Session session, string fullPath, string ext, ExtensionInfo extInfo)
     {
         string text = File.ReadAllText(fullPath);
+        text = Server.PostProcess(session, text);
         ResponsePacket ret = new ResponsePacket() { Data = Encoding.UTF8.GetBytes(text), ContentType = extInfo.ContentType, Encoding = Encoding.UTF8 };
 
         return ret;
@@ -66,11 +67,11 @@ public class Router
     /// </summary>
     private ResponsePacket PageLoader(Session session, string fullPath, string ext, ExtensionInfo extInfo)
     {
-        ResponsePacket ret = new ResponsePacket();
+        ResponsePacket ret;
 
         if (fullPath == WebsitePath) // If nothing follows the domain name or IP, then default to loading index.html.
         {
-            ret = Route(null, GET, "/index.html", null);
+            ret = Route(session, GET, "/index.html", []);
         }
         else
         {
@@ -95,6 +96,12 @@ public class Router
         ResponsePacket? ret = null;
         verb = verb.ToLower();
 
+        if (verb != GET && !VerifyCSRF(session, kvParams))
+        {
+            // Don't like multiple return points, but it's so convenient here!
+            return Server.Redirect(Server.OnError!(Server.ServerError.ValidationError));
+        }
+
         if (extFolderMap.TryGetValue(ext, out extInfo))
         {
             string wpath = path.Substring(1).Replace('/', '\\'); // Strip off leading '/' and reformat as with windows path separator.
@@ -105,12 +112,12 @@ public class Router
             if (handler != null)
             {
                 // Application has a handler for this route.
-                ResponsePacket handlerResponse = handler.Handler.Handle(session, kvParams);
+                ResponsePacket handlerResponse = handler.Handler!.Handle(session, kvParams);
 
                 if (handlerResponse == null)
                 {
                     // Respond with default content loader.
-                    ret = extInfo.Loader(session, fullPath, ext, extInfo);
+                    ret = extInfo.Loader!(session, fullPath, ext, extInfo);
                 }
                 else
                 {
@@ -121,7 +128,7 @@ public class Router
             else
             {
                 // Attempt default behavior
-                ret = extInfo?.Loader(session, fullPath, ext, extInfo);
+                ret = extInfo.Loader!(session, fullPath, ext, extInfo);
             }
         }
         else
@@ -132,10 +139,30 @@ public class Router
         return ret;
     }
 
+    /// <summary>
+    /// If a CSRF validation token exists, verify it matches our session value.
+    /// If one doesn't exist, issue a warning to the console.
+    /// </summary>
+    private bool VerifyCSRF(Session session, Dictionary<string, string> kvParams)
+    {
+        bool ret = true;
+
+        if (kvParams.TryGetValue(Server.ValidationTokenName, out string? token))
+        {
+            ret = session.Objects[Server.ValidationTokenName]?.ToString() == token;
+        }
+        else
+        {
+            Console.WriteLine("Warning - CSRF token is missing. Consider adding it to the request.");
+        }
+
+        return ret;
+    }
+
     internal class ExtensionInfo
     {
         public string? ContentType { get; set; }
-        public Func<Session, string, string, ExtensionInfo, ResponsePacket> Loader { get; set; }
+        public Func<Session, string, string, ExtensionInfo, ResponsePacket>? Loader { get; set; }
     }
 }
 
@@ -150,7 +177,7 @@ public class ResponsePacket
 
 public class Route
 {
-    public string? Verb { get; set; }
-    public string? Path { get; set; }
-    public RouteHandler Handler { get; set; }
+    public string Verb { get; set; } = "get";
+    public string Path { get; set; } = "";
+    public RouteHandler? Handler { get; set; }
 }

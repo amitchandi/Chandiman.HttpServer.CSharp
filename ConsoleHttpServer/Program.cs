@@ -85,7 +85,7 @@ internal class Program
     {
         int number = int.Parse(parms["number"]) + 10;
         string data = "You said " + number;
-        ResponsePacket ret = new ResponsePacket() { Data = Encoding.UTF8.GetBytes(data), ContentType = "text" };
+        ResponsePacket ret = new() { Data = Encoding.UTF8.GetBytes(data), ContentType = "text" };
 
         return ret;
     }
