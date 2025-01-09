@@ -57,12 +57,14 @@ public class SessionManager
     /// Track all sessions.
     /// </summary>
     protected Dictionary<IPAddress, Session> sessionMap = new Dictionary<IPAddress, Session>();
+    protected Server server;
 
     // TODO: We need a way to remove very old sessions so that the server doesn't accumulate thousands of stale endpoints.
 
-    public SessionManager()
+    public SessionManager(Server server)
     {
         sessionMap = new Dictionary<IPAddress, Session>();
+        this.server = server;
     }
 
     /// <summary>
@@ -75,7 +77,7 @@ public class SessionManager
         if (!sessionMap.TryGetValue(remoteEndPoint.Address, out Session? session))
         {
             session = new Session();
-            session.Objects[Server.ValidationTokenName] = Guid.NewGuid().ToString();
+            session.Objects[server.ValidationTokenName] = Guid.NewGuid().ToString();
             sessionMap[remoteEndPoint.Address] = session;
         }
 

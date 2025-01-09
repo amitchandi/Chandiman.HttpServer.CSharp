@@ -7,34 +7,37 @@ namespace ConsoleHttpServer;
 
 internal class Program
 {
+    private static Server server;
     static void Main(string[] args)
     {
         string websitePath = GetWebsitePath();
-        
-        Server.OnError = ErrorHandler;
 
-        Server.onRequest = (session, context) =>
+        server = new(websitePath);
+        
+        server.OnError = ErrorHandler;
+
+        server.OnRequest = (session, context) =>
         {
             session.Authorized = true;
             session.UpdateLastConnectionTime();
         };
 
         // register a route handler:
-        Server.AddRoute(new Route()
+        server.AddRoute(new Route()
         {
             Verb = Router.POST,
             Path = "/demo/redirect",
-            Handler = new AuthenticatedRouteHandler(RedirectMe)
+            Handler = new AuthenticatedRouteHandler(server, RedirectMe)
         });
 
-        Server.AddRoute(new Route()
+        server.AddRoute(new Route()
         {
             Verb = Router.PUT,
             Path = "/demo/ajax",
-            Handler = new AnonymousRouteHandler(AjaxResponder)
+            Handler = new AnonymousRouteHandler(server, AjaxResponder)
         });
 
-        Server.Start(websitePath);
+        server.Start();
         Console.ReadLine();
     }
 
@@ -78,7 +81,7 @@ internal class Program
 
     public static ResponsePacket RedirectMe(Session session, Dictionary<string, string> parms)
     {
-        return Server.Redirect("/demo/clicked");
+        return server.Redirect("/demo/clicked");
     }
 
     public static ResponsePacket AjaxResponder(Session session, Dictionary<string, string> parms)

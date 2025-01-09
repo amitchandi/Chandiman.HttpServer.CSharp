@@ -10,14 +10,18 @@ public class Router
     public const string PUT = "put";
     public const string DELETE = "delete";
 
-    public string WebsitePath { get; set; }
+    private string WebsitePath { get; set; }
 
     private Dictionary<string, ExtensionInfo> extFolderMap;
 
     public List<Route> routes;
+    public Server serverInstance;
 
-    public Router()
+    public Router(string websitePath, Server server)
     {
+        WebsitePath = websitePath;
+        serverInstance = server;
+
         routes = new List<Route>();
         extFolderMap = new Dictionary<string, ExtensionInfo>()
         {
@@ -55,7 +59,7 @@ public class Router
     private ResponsePacket FileLoader(Session session, string fullPath, string ext, ExtensionInfo extInfo)
     {
         string text = File.ReadAllText(fullPath);
-        text = Server.PostProcess(session, text);
+        text = serverInstance.PostProcess(session, text);
         ResponsePacket ret = new ResponsePacket() { Data = Encoding.UTF8.GetBytes(text), ContentType = extInfo.ContentType, Encoding = Encoding.UTF8 };
 
         return ret;
@@ -96,12 +100,6 @@ public class Router
         ResponsePacket? ret = null;
         verb = verb.ToLower();
 
-        if (verb != GET && !VerifyCSRF(session, kvParams))
-        {
-            // Don't like multiple return points, but it's so convenient here!
-            return Server.Redirect(Server.OnError!(Server.ServerError.ValidationError));
-        }
-
         if (extFolderMap.TryGetValue(ext, out extInfo))
         {
             string wpath = path.Substring(1).Replace('/', '\\'); // Strip off leading '/' and reformat as with windows path separator.
@@ -134,26 +132,6 @@ public class Router
         else
         {
             ret = new ResponsePacket() { Error = Server.ServerError.UnknownType };
-        }
-
-        return ret;
-    }
-
-    /// <summary>
-    /// If a CSRF validation token exists, verify it matches our session value.
-    /// If one doesn't exist, issue a warning to the console.
-    /// </summary>
-    private bool VerifyCSRF(Session session, Dictionary<string, string> kvParams)
-    {
-        bool ret = true;
-
-        if (kvParams.TryGetValue(Server.ValidationTokenName, out string? token))
-        {
-            ret = session.Objects[Server.ValidationTokenName]?.ToString() == token;
-        }
-        else
-        {
-            Console.WriteLine("Warning - CSRF token is missing. Consider adding it to the request.");
         }
 
         return ret;

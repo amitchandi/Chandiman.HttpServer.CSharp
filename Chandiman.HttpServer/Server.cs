@@ -5,23 +5,30 @@ using Chandiman.Extensions;
 
 namespace Chandiman.HttpServer;
 
-public static class Server
+public class Server
 {
-    private static HttpListener? listener;
+    private HttpListener? listener;
 
-    public static int maxSimultaneousConnections = 20;
-    private static Semaphore sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
+    public int maxSimultaneousConnections = 20;
+    private Semaphore sem;
 
-    private static Router router = new Router();
-    private static SessionManager sessionManager;
+    private Router router;
+    private SessionManager sessionManager;
 
-    public static int expirationTimeSeconds = 60;
+    public int expirationTimeSeconds = 60;
 
-    public static Action<Session, HttpListenerContext> onRequest;
+    public Action<Session, HttpListenerContext>? OnRequest;
 
-    public static Func<ServerError, string> OnError { get; set; }
+    public Func<ServerError, string>? OnError { get; set; }
 
-    public static string? PublicIP;
+    public string? PublicIP;
+
+    public Server(string websitePath)
+    {
+        sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
+        router = new(websitePath, this);
+        sessionManager = new(this);
+    }
 
     /// <summary>
     /// Returns list of IP addresses assigned to localhost network devices, such as hardwired ethernet, wireless, etc.
@@ -44,7 +51,7 @@ public static class Server
         return externalIP;
     }
 
-    private static HttpListener InitializeListener(List<IPAddress> localhostIPs)
+    private HttpListener InitializeListener(List<IPAddress> localhostIPs)
     {
         listener = new();
         listener.Prefixes.Add("http://localhost/");
@@ -62,9 +69,8 @@ public static class Server
     /// <summary>
     /// Begin listening to connections on a separate worker thread.
     /// </summary>
-    private static void Start(HttpListener listener)
+    private void Start(HttpListener listener)
     {
-        sessionManager = new SessionManager();
         listener.Start();
         Task.Run(() => RunServer(listener));
     }
@@ -73,7 +79,7 @@ public static class Server
     /// Start awaiting for connections, up to the "maxSimultaneousConnections" value.
     /// This code runs in a separate thread.
     /// </summary>
-    private static void RunServer(HttpListener listener)
+    private void RunServer(HttpListener listener)
     {
         while (true)
         {
@@ -85,7 +91,7 @@ public static class Server
     /// <summary>
     /// Await connections.
     /// </summary>
-    private static async void StartConnectionListener(HttpListener listener)
+    private async void StartConnectionListener(HttpListener listener)
     {
         ResponsePacket resp;
 
@@ -93,7 +99,7 @@ public static class Server
         HttpListenerContext context = await listener.GetContextAsync();
 
         Session session = sessionManager.GetSession(context.Request.RemoteEndPoint);
-        onRequest.IfNotNull(r => r(session, context));
+        OnRequest.IfNotNull(r => r!(session, context));
 
         // Release the semaphore so that another listener can be immediately started up.
         sem.Release();
@@ -113,37 +119,76 @@ public static class Server
             GetKeyValues(data, kvParams);
             Log(kvParams);
 
-            
-
-            resp = router.Route(session, verb, path, kvParams);
-
-            // Update session last connection after getting the response,
-            // as the router itself validates session expiration only on pages requiring authentication.
-            session.UpdateLastConnectionTime();
-
-            if (resp.Error != ServerError.OK)
+            if (!VerifyCSRF(session, verb, kvParams))
             {
-                resp.Redirect = OnError(resp.Error);
+                Console.WriteLine("CSRF did not match.  Terminating connection.");
+                context.Response.OutputStream.Close();
             }
+            else
+            {
+                resp = router!.Route(session, verb, path, kvParams);
 
-            Respond(context.Request, context.Response, resp);
+                // Update session last connection after getting the response,
+                // as the router itself validates session expiration only on pages requiring authentication.
+                session.UpdateLastConnectionTime();
+
+                if (resp.Error != ServerError.OK)
+                {
+                    resp.Redirect = OnError(resp.Error);
+                }
+
+                try
+                {
+                    Respond(context.Request, context.Response, resp);
+                }
+                catch (Exception ex)
+                {
+                    // The response failed!
+                    // TODO: We need to put in some decent logging!
+                    Console.WriteLine(ex.Message);
+                }
+            }
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex.Message);
             Console.WriteLine(ex.StackTrace);
-            resp = new ResponsePacket() { Redirect = OnError(ServerError.ServerError) };
+            resp = new ResponsePacket()
+            {
+                Redirect = OnError.IfNotNullReturn((OnError) => OnError!(ServerError.ServerError))
+            };
             Respond(context.Request, context.Response, resp);
         }
     }
 
     /// <summary>
+    /// If a CSRF validation token exists, verify it matches our session value.
+    /// If one doesn't exist, issue a warning to the console.
+    /// </summary>
+    private bool VerifyCSRF(Session session, string verb, Dictionary<string, string> kvParams)
+    {
+        bool ret = true;
+
+        if (verb.ToLower() != "get")
+        {
+            if (kvParams.TryGetValue(ValidationTokenName, out string? token))
+            {
+                ret = session.Objects[ValidationTokenName]?.ToString() == token.ToString();
+            }
+            else
+            {
+                Console.WriteLine("Warning - CSRF token is missing. Consider adding it to the request.");
+            }
+        }
+
+        return ret;
+    }
+
+    /// <summary>
     /// Starts the web server.
     /// </summary>
-    public static void Start(string websitePath)
+    public void Start()
     {
-        router.WebsitePath = websitePath;
-
         List<IPAddress> localHostIPs = GetLocalHostIPs();
         HttpListener listener = InitializeListener(localHostIPs);
         Start(listener);
@@ -152,12 +197,12 @@ public static class Server
     /// <summary>
     /// Log requests.
     /// </summary>
-    public static void Log(HttpListenerRequest request)
+    public void Log(HttpListenerRequest request)
     {
         Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + request.Url?.AbsoluteUri.RightOf('/', 3));
     }
 
-    private static Dictionary<string, string> GetKeyValues(string data, Dictionary<string, string>? kv = null)
+    private Dictionary<string, string> GetKeyValues(string data, Dictionary<string, string>? kv = null)
     {
         kv.IfNull(() => kv = new Dictionary<string, string>());
         data.If(d => d.Length > 0, (d) => d.Split('&').ForEach(keyValue => kv![keyValue.LeftOf('=')] = keyValue.RightOf('=')));
@@ -165,19 +210,23 @@ public static class Server
         return kv!;
     }
 
-    private static void Log(Dictionary<string, string> kv)
+    private void Log(Dictionary<string, string> kv)
     {
         kv.ForEach(kvp => Console.WriteLine(kvp.Key + " : " + kvp.Value));
     }
 
-    private static void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket resp)
+    private void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket resp)
     {
         if (string.IsNullOrEmpty(resp.Redirect))
         {
-            response.ContentType = resp.ContentType;
-            response.ContentLength64 = resp.Data!.Length;
-            response.OutputStream.Write(resp.Data, 0, resp.Data.Length);
-            response.ContentEncoding = resp.Encoding;
+            if (resp.Data != null)
+            {
+                response.ContentType = resp.ContentType;
+                response.ContentLength64 = resp.Data.Length;
+                response.OutputStream.Write(resp.Data, 0, resp.Data.Length);
+                response.ContentEncoding = resp.Encoding;
+            }
+
             response.StatusCode = (int)HttpStatusCode.OK;
         }
         else
@@ -210,12 +259,12 @@ public static class Server
         AjaxError,
     }
 
-    public static void AddRoute(Route route) => router.AddRoute(route);
+    public void AddRoute(Route route) => router.AddRoute(route);
 
     /// <summary>
     /// Return a ResponsePacket with the specified URL and an optional (singular) parameter.
     /// </summary>
-    public static ResponsePacket Redirect(string url, string? parm = null)
+    public ResponsePacket Redirect(string url, string? parm = null)
     {
         ResponsePacket ret = new ResponsePacket() { Redirect = url };
         parm.IfNotNull((p) => ret.Redirect += "?" + p);
@@ -223,17 +272,17 @@ public static class Server
         return ret;
     }
 
-    public static string ValidationTokenScript = "<%AntiForgeryToken%>";
-    public static string ValidationTokenName = "__CSRFToken__";
+    public string ValidationTokenScript = "<%AntiForgeryToken%>";
+    public string ValidationTokenName = "__CSRFToken__";
 
-    public static string PostProcess(Session session, string html)
+    public string PostProcess(Session session, string html)
     {
         string ret = html.Replace(ValidationTokenScript,
         "<input name='" +
         ValidationTokenName +
         "' type='hidden' value='" +
         session.Objects[ValidationTokenName]?.ToString() +
-        " id='#__csrf__'" +
+        "' id='#__csrf__'" +
         "/>");
 
         return ret;

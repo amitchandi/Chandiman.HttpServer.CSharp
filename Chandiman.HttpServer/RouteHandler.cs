@@ -1,14 +1,18 @@
-﻿namespace Chandiman.HttpServer;
+﻿using Chandiman.Extensions;
+
+namespace Chandiman.HttpServer;
 /// <summary>
 /// The base class for route handlers.
 /// </summary>
 public abstract class RouteHandler
 {
+    protected Server server;
     protected Func<Session, Dictionary<string, string>, ResponsePacket> handler;
 
-    public RouteHandler(Func<Session, Dictionary<string, string>, ResponsePacket> handler)
+    public RouteHandler(Server server, Func<Session, Dictionary<string, string>, ResponsePacket> handler)
     {
         this.handler = handler;
+        this.server = server;
     }
 
     public abstract ResponsePacket Handle(Session session, Dictionary<string, string> parms);
@@ -19,8 +23,8 @@ public abstract class RouteHandler
 /// </summary>
 public class AnonymousRouteHandler : RouteHandler
 {
-    public AnonymousRouteHandler(Func<Session, Dictionary<string, string>, ResponsePacket> handler)
-        : base(handler)
+    public AnonymousRouteHandler(Server server, Func<Session, Dictionary<string, string>, ResponsePacket> handler)
+        : base(server, handler)
     {
     }
 
@@ -35,8 +39,8 @@ public class AnonymousRouteHandler : RouteHandler
 /// </summary>
 public class AuthenticatedRouteHandler : RouteHandler
 {
-    public AuthenticatedRouteHandler(Func<Session, Dictionary<string, string>, ResponsePacket> handler)
-        : base(handler)
+    public AuthenticatedRouteHandler(Server server, Func<Session, Dictionary<string, string>, ResponsePacket> handler)
+        : base(server, handler)
     {
     }
 
@@ -50,7 +54,8 @@ public class AuthenticatedRouteHandler : RouteHandler
         }
         else
         {
-            ret = Server.Redirect(Server.OnError(Server.ServerError.NotAuthorized));
+            ret = server.OnError.IfNotNullReturn((OnError)
+                => server.Redirect(OnError!(Server.ServerError.NotAuthorized)));
         }
 
         return ret;
@@ -62,8 +67,8 @@ public class AuthenticatedRouteHandler : RouteHandler
 /// </summary>
 public class AuthenticatedExpirableRouteHandler : AuthenticatedRouteHandler
 {
-    public AuthenticatedExpirableRouteHandler(Func<Session, Dictionary<string, string>, ResponsePacket> handler)
-        : base(handler)
+    public AuthenticatedExpirableRouteHandler(Server server, Func<Session, Dictionary<string, string>, ResponsePacket> handler)
+        : base(server, handler)
     {
     }
 
@@ -71,10 +76,13 @@ public class AuthenticatedExpirableRouteHandler : AuthenticatedRouteHandler
     {
         ResponsePacket ret;
 
-        if (session.IsExpired(Server.expirationTimeSeconds))
+        if (session.IsExpired(server.expirationTimeSeconds))
         {
             session.Authorized = false;
-            ret = Server.Redirect(Server.OnError(Server.ServerError.ExpiredSession));
+            //ret = server.Redirect(server.OnError(Server.ServerError.ExpiredSession));
+            
+            ret = server.OnError.IfNotNullReturn((OnError)
+                => server.Redirect(OnError!(Server.ServerError.ExpiredSession)));
         }
         else
         {
