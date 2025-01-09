@@ -110,10 +110,15 @@ public class Router
             if (handler != null)
             {
                 // Application has a handler for this route.
-                ResponsePacket handlerResponse = handler.Handler!.Handle(session, kvParams);
+                ResponsePacket? handlerResponse = handler.Handler?.Handle(session, kvParams);
 
                 if (handlerResponse == null)
                 {
+                    if (!handler.FilePath.IsEmpty())
+                    {
+                        fullPath = Path.Combine(WebsitePath, handler.FilePath);
+                    }
+
                     // Respond with default content loader.
                     ret = extInfo.Loader!(session, fullPath, ext, extInfo);
                 }
@@ -158,4 +163,5 @@ public class Route
     public string Verb { get; set; } = "get";
     public string Path { get; set; } = "";
     public RouteHandler? Handler { get; set; }
+    public string FilePath { get; set; } = "";
 }

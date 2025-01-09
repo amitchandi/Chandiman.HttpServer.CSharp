@@ -48,7 +48,7 @@ public class AuthenticatedRouteHandler : RouteHandler
     {
         ResponsePacket ret;
 
-        if (session.Authorized)
+        if (session.Authenticated)
         {
             ret = handler(session, parms);
         }
@@ -78,8 +78,7 @@ public class AuthenticatedExpirableRouteHandler : AuthenticatedRouteHandler
 
         if (session.IsExpired(server.expirationTimeSeconds))
         {
-            session.Authorized = false;
-            //ret = server.Redirect(server.OnError(Server.ServerError.ExpiredSession));
+            session.Authenticated = false;
             
             ret = server.OnError.IfNotNullReturn((OnError)
                 => server.Redirect(OnError!(Server.ServerError.ExpiredSession)));

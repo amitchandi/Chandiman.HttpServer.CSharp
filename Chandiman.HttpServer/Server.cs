@@ -134,7 +134,7 @@ public class Server
 
                 if (resp.Error != ServerError.OK)
                 {
-                    resp.Redirect = OnError(resp.Error);
+                    resp.Redirect = OnError.IfNotNullReturn((OnError) => OnError!(resp.Error));
                 }
 
                 try
@@ -284,6 +284,24 @@ public class Server
         session.Objects[ValidationTokenName]?.ToString() +
         "' id='#__csrf__'" +
         "/>");
+
+        return ret;
+    }
+
+    /// <summary>
+    /// Callable by the application for default handling, therefore must be public.
+    /// </summary>
+    // TODO: Implement this as interface with a base class so the app can call the base class default behavior.
+    public string DefaultPostProcess(Session session, string fileName, string html)
+    {
+        string ret = html.Replace(ValidationTokenScript, "<input name=" + ValidationTokenName.SingleQuote() +
+            " type='hidden' value=" + session[ValidationTokenName]?.ToString()?.SingleQuote() +
+            " id='__csrf__'/>");
+
+        // For when the CSRF is in a knockout model or other JSON that is being posted back to the server.
+        ret = ret.Replace("@CSRF@", session[ValidationTokenName]?.ToString()?.SingleQuote());
+
+        ret = ret.Replace("@CSRFValue@", session[ValidationTokenName]?.ToString());
 
         return ret;
     }

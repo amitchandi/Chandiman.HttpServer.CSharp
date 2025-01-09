@@ -10,15 +10,17 @@ internal class Program
     private static Server server;
     static void Main(string[] args)
     {
+
+        Console.WriteLine("test".RightOf('\\'));
         string websitePath = GetWebsitePath();
 
         server = new(websitePath);
         
-        server.OnError = ErrorHandler;
+        //server.OnError = ErrorHandler;
 
         server.OnRequest = (session, context) =>
         {
-            session.Authorized = true;
+            session.Authenticated = true;
             session.UpdateLastConnectionTime();
         };
 
@@ -35,6 +37,12 @@ internal class Program
             Verb = Router.PUT,
             Path = "/demo/ajax",
             Handler = new AnonymousRouteHandler(server, AjaxResponder)
+        });
+
+        server.AddRoute(new Route()
+        {
+            Path = "/asd",
+            FilePath = "test"
         });
 
         server.Start();
@@ -91,5 +99,10 @@ internal class Program
         ResponsePacket ret = new() { Data = Encoding.UTF8.GetBytes(data), ContentType = "text" };
 
         return ret;
+    }
+
+    public static ResponsePacket Handler(Session session, Dictionary<string, string> parms)
+    {
+        return server.Redirect("/test");
     }
 }

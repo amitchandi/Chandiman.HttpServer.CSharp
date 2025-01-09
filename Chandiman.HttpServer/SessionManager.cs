@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 
 using Chandiman.Extensions;
 
@@ -10,7 +11,7 @@ namespace Chandiman.HttpServer;
 public class Session
 {
     public DateTime LastConnection { get; set; }
-    public bool Authorized { get; set; }
+    public bool Authenticated { get; set; }
 
     /// <summary>
     /// Can be used by controllers to add additional information that needs to persist in the session.
@@ -49,6 +50,15 @@ public class Session
     {
         return (DateTime.Now - LastConnection).TotalSeconds > expirationInSeconds;
     }
+
+    /// <summary>
+    /// De-authorize the session.
+    /// </summary>
+    public void Expire()
+    {
+        Authenticated = false;
+        // Don't remove the validation token, as we still essentially have a session, we just want the user to log in again.
+    }
 }
 
 public class SessionManager
@@ -56,7 +66,7 @@ public class SessionManager
     /// <summary>
     /// Track all sessions.
     /// </summary>
-    protected Dictionary<IPAddress, Session> sessionMap = new Dictionary<IPAddress, Session>();
+    protected Dictionary<IPAddress, Session> sessionMap = [];
     protected Server server;
 
     // TODO: We need a way to remove very old sessions so that the server doesn't accumulate thousands of stale endpoints.
