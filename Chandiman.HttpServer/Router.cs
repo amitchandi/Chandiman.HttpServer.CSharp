@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Net;
+using System.Text;
 using Chandiman.Extensions;
 
 namespace Chandiman.HttpServer;
@@ -22,7 +23,7 @@ public class Router
         WebsitePath = websitePath;
         serverInstance = server;
 
-        routes = new List<Route>();
+        routes = [];
         extFolderMap = new Dictionary<string, ExtensionInfo>()
         {
             {"ico", new ExtensionInfo() {Loader=ImageLoader, ContentType="image/ico"}},
@@ -42,7 +43,7 @@ public class Router
     /// <summary>
     /// Read in an image file and returns a ResponsePacket with the raw data.
     /// </summary>
-    private ResponsePacket ImageLoader(Session session, string fullPath, string ext, ExtensionInfo extInfo)
+    private ResponsePacket ImageLoader(Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
         FileStream fStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
         BinaryReader br = new BinaryReader(fStream);
@@ -56,11 +57,20 @@ public class Router
     /// <summary>
     /// Read in what is basically a text file and return a ResponsePacket with the text UTF8 encoded.
     /// </summary>
-    private ResponsePacket FileLoader(Session session, string fullPath, string ext, ExtensionInfo extInfo)
+    private ResponsePacket FileLoader(Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
-        string text = File.ReadAllText(fullPath);
-        text = serverInstance.PostProcess(session, text);
-        ResponsePacket ret = new ResponsePacket() { Data = Encoding.UTF8.GetBytes(text), ContentType = extInfo.ContentType, Encoding = Encoding.UTF8 };
+        ResponsePacket ret;
+
+        if (!File.Exists(fullPath))
+        {
+            ret = new ResponsePacket() { Error = Server.ServerError.FileNotFound };
+            Console.WriteLine("File not found. " + fullPath);
+        }
+        else
+        {
+            string text = File.ReadAllText(fullPath);
+            ret = new() { Data = Encoding.UTF8.GetBytes(text), ContentType = extInfo.ContentType, Encoding = Encoding.UTF8 };
+        }
 
         return ret;
     }
@@ -69,7 +79,7 @@ public class Router
     /// Load an HTML file, taking into account missing extensions and a file-less IP/domain, 
     /// which should default to index.html.
     /// </summary>
-    private ResponsePacket PageLoader(Session session, string fullPath, string ext, ExtensionInfo extInfo)
+    private ResponsePacket PageLoader(Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
         ResponsePacket ret;
 
@@ -84,16 +94,37 @@ public class Router
                 // No extension, so we make it ".html"
                 fullPath += ".html";
             }
-            Console.WriteLine(fullPath.RightOf(WebsitePath));
+            
             // Inject the "Pages" folder into the path
             fullPath = WebsitePath + "\\Pages" + fullPath.RightOf(WebsitePath);
-            ret = FileLoader(session, fullPath, ext, extInfo);
+
+            if (!File.Exists(fullPath))
+            {
+                ret = new() { Error = Server.ServerError.PageNotFound };
+                Console.WriteLine("File not found. " + fullPath);
+            }
+            else
+            {
+                string text = File.ReadAllText(fullPath);
+
+                // Do the application global post process replacement.
+                text = serverInstance.PostProcess(session, kvParams, text);
+
+                // If a custom post process callback exists, call it.
+                routeHandler.IfNotNull((r) => r!.PostProcess.IfNotNull((p) => text = p!(session, kvParams, text)));
+
+                // Do our default post process to catch any final CSRF stuff in the fully merged document.
+                text = serverInstance.PostProcess(session, kvParams, text);
+
+
+                ret = new ResponsePacket() { Data = Encoding.UTF8.GetBytes(text), ContentType = extInfo.ContentType, Encoding = Encoding.UTF8 };
+            }
         }
 
         return ret;
     }
 
-    public ResponsePacket Route(Session session, string verb, string path, Dictionary<string, string> kvParams)
+    public ResponsePacket Route(Session session, string verb, string path, Dictionary<string, object?> kvParams)
     {
         string ext = path.RightOfRightmostOf('.');
         ExtensionInfo? extInfo;
@@ -105,22 +136,22 @@ public class Router
             string wpath = path.Substring(1).Replace('/', '\\'); // Strip off leading '/' and reformat as with windows path separator.
             string fullPath = Path.Combine(WebsitePath, wpath);
 
-            Route? handler = routes.SingleOrDefault(r => verb == r.Verb.ToLower() && path == r.Path);
+            Route? route = routes.SingleOrDefault(r => verb == r.Verb.ToLower() && path == r.Path);
 
-            if (handler != null)
+            if (route != null)
             {
                 // Application has a handler for this route.
-                ResponsePacket? handlerResponse = handler.Handler?.Handle(session, kvParams);
+                ResponsePacket? handlerResponse = route.Handler?.Handle(session, kvParams);
 
                 if (handlerResponse == null)
                 {
-                    if (!handler.FilePath.IsEmpty())
+                    if (!route.FilePath.IsEmpty())
                     {
-                        fullPath = Path.Combine(WebsitePath, handler.FilePath);
+                        fullPath = Path.Combine(WebsitePath, route.FilePath);
                     }
 
                     // Respond with default content loader.
-                    ret = extInfo.Loader!(session, fullPath, ext, extInfo);
+                    ret = extInfo.Loader!(route, session, kvParams, fullPath, ext, extInfo);
                 }
                 else
                 {
@@ -131,7 +162,7 @@ public class Router
             else
             {
                 // Attempt default behavior
-                ret = extInfo.Loader!(session, fullPath, ext, extInfo);
+                ret = extInfo.Loader!(route, session, kvParams, fullPath, ext, extInfo);
             }
         }
         else
@@ -145,7 +176,7 @@ public class Router
     internal class ExtensionInfo
     {
         public string? ContentType { get; set; }
-        public Func<Session, string, string, ExtensionInfo, ResponsePacket>? Loader { get; set; }
+        public Func<Route?, Session, Dictionary<string, object?>, string, string, ExtensionInfo, ResponsePacket>? Loader { get; set; }
     }
 }
 
@@ -156,6 +187,13 @@ public class ResponsePacket
     public string? ContentType { get; set; }
     public Encoding? Encoding { get; set; }
     public Server.ServerError Error { get; set; }
+    public HttpStatusCode? StatusCode { get; set; }
+
+    public ResponsePacket()
+    {
+        Error = Server.ServerError.OK;
+        StatusCode = HttpStatusCode.OK;
+    }
 }
 
 public class Route
@@ -164,4 +202,5 @@ public class Route
     public string Path { get; set; } = "";
     public RouteHandler? Handler { get; set; }
     public string FilePath { get; set; } = "";
+    public Func<Session, Dictionary<string, object?>, string, string>? PostProcess { get; set; }
 }

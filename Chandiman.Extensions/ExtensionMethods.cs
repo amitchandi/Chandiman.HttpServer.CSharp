@@ -1,4 +1,6 @@
-﻿// This is a general purpose library that is part of my "toolchest".
+﻿#pragma warning disable
+
+// This is a general purpose library that is part of my "toolchest".
 
 /*
 Copyright (c) 2012-2015, Marc Clifton

@@ -7,15 +7,15 @@ namespace Chandiman.HttpServer;
 public abstract class RouteHandler
 {
     protected Server server;
-    protected Func<Session, Dictionary<string, string>, ResponsePacket> handler;
+    protected Func<Session, Dictionary<string, object?>, ResponsePacket> handler;
 
-    public RouteHandler(Server server, Func<Session, Dictionary<string, string>, ResponsePacket> handler)
+    public RouteHandler(Server server, Func<Session, Dictionary<string, object?>, ResponsePacket> handler)
     {
         this.handler = handler;
         this.server = server;
     }
 
-    public abstract ResponsePacket Handle(Session session, Dictionary<string, string> parms);
+    public abstract ResponsePacket Handle(Session session, Dictionary<string, object?> parms);
 }
 
 /// <summary>
@@ -23,12 +23,12 @@ public abstract class RouteHandler
 /// </summary>
 public class AnonymousRouteHandler : RouteHandler
 {
-    public AnonymousRouteHandler(Server server, Func<Session, Dictionary<string, string>, ResponsePacket> handler)
+    public AnonymousRouteHandler(Server server, Func<Session, Dictionary<string, object?>, ResponsePacket> handler)
         : base(server, handler)
     {
     }
 
-    public override ResponsePacket Handle(Session session, Dictionary<string, string> parms)
+    public override ResponsePacket Handle(Session session, Dictionary<string, object?> parms)
     {
         return handler(session, parms);
     }
@@ -39,12 +39,12 @@ public class AnonymousRouteHandler : RouteHandler
 /// </summary>
 public class AuthenticatedRouteHandler : RouteHandler
 {
-    public AuthenticatedRouteHandler(Server server, Func<Session, Dictionary<string, string>, ResponsePacket> handler)
+    public AuthenticatedRouteHandler(Server server, Func<Session, Dictionary<string, object?>, ResponsePacket> handler)
         : base(server, handler)
     {
     }
 
-    public override ResponsePacket Handle(Session session, Dictionary<string, string> parms)
+    public override ResponsePacket Handle(Session session, Dictionary<string, object?> parms)
     {
         ResponsePacket ret;
 
@@ -67,12 +67,12 @@ public class AuthenticatedRouteHandler : RouteHandler
 /// </summary>
 public class AuthenticatedExpirableRouteHandler : AuthenticatedRouteHandler
 {
-    public AuthenticatedExpirableRouteHandler(Server server, Func<Session, Dictionary<string, string>, ResponsePacket> handler)
+    public AuthenticatedExpirableRouteHandler(Server server, Func<Session, Dictionary<string, object?>, ResponsePacket> handler)
         : base(server, handler)
     {
     }
 
-    public override ResponsePacket Handle(Session session, Dictionary<string, string> parms)
+    public override ResponsePacket Handle(Session session, Dictionary<string, object?> parms)
     {
         ResponsePacket ret;
 

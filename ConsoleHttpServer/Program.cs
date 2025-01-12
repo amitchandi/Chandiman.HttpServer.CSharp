@@ -7,16 +7,14 @@ namespace ConsoleHttpServer;
 
 internal class Program
 {
-    private static Server server;
+    private static Server? server;
     static void Main(string[] args)
     {
-
-        Console.WriteLine("test".RightOf('\\'));
         string websitePath = GetWebsitePath();
 
         server = new(websitePath);
         
-        //server.OnError = ErrorHandler;
+        server.OnError = ErrorHandler;
 
         server.OnRequest = (session, context) =>
         {
@@ -42,7 +40,8 @@ internal class Program
         server.AddRoute(new Route()
         {
             Path = "/asd",
-            FilePath = "test"
+            //FilePath = "test"
+            Handler = new AnonymousRouteHandler(server, CustomHandler)   
         });
 
         server.Start();
@@ -58,9 +57,9 @@ internal class Program
         return websitePath;
     }
 
-    public static string? ErrorHandler(Server.ServerError error)
+    public static string ErrorHandler(Server.ServerError error)
     {
-        string? ret = null;
+        string ret;
 
         switch (error)
         {
@@ -82,27 +81,31 @@ internal class Program
             case Server.ServerError.UnknownType:
                 ret = "/ErrorPages/unknownType.html";
                 break;
+            default:
+                ret = "/ErrorPages/serverError.html";
+                break;
         }
 
         return ret;
     }
 
-    public static ResponsePacket RedirectMe(Session session, Dictionary<string, string> parms)
+    public static ResponsePacket RedirectMe(Session session, Dictionary<string, object?> parms)
     {
-        return server.Redirect("/demo/clicked");
+        return server!.Redirect("/demo/clicked");
     }
 
-    public static ResponsePacket AjaxResponder(Session session, Dictionary<string, string> parms)
+    public static ResponsePacket AjaxResponder(Session session, Dictionary<string, object?> parms)
     {
-        int number = int.Parse(parms["number"]) + 10;
+        int number = int.Parse((string)parms["number"]!) + 10;
+        Console.WriteLine(number);
         string data = "You said " + number;
         ResponsePacket ret = new() { Data = Encoding.UTF8.GetBytes(data), ContentType = "text" };
 
         return ret;
     }
 
-    public static ResponsePacket Handler(Session session, Dictionary<string, string> parms)
+    public static ResponsePacket CustomHandler(Session session, Dictionary<string, object?> parms)
     {
-        return server.Redirect("/test");
+        return server!.CustomPath(session, "/test", parms);
     }
 }

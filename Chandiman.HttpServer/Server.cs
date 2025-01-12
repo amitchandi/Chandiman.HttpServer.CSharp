@@ -7,27 +7,30 @@ namespace Chandiman.HttpServer;
 
 public class Server
 {
-    private HttpListener? listener;
+    private HttpListener? listener { get; set; }
 
-    public int maxSimultaneousConnections = 20;
-    private Semaphore sem;
+    public int maxSimultaneousConnections { get; set; } = 20;
+    private Semaphore sem { get; set; }
 
-    private Router router;
-    private SessionManager sessionManager;
+    private Router router { get; set; }
+    private SessionManager sessionManager { get; set; }
 
-    public int expirationTimeSeconds = 60;
+    public int expirationTimeSeconds { get; set; } = 60;
 
-    public Action<Session, HttpListenerContext>? OnRequest;
+    public Action<Session, HttpListenerContext>? OnRequest { get; set; }
 
     public Func<ServerError, string>? OnError { get; set; }
 
-    public string? PublicIP;
+    public string? PublicIP { get; set; }
+
+    public Func<Session, Dictionary<string, object?>, string, string> PostProcess { get; set; }
 
     public Server(string websitePath)
     {
         sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
         router = new(websitePath, this);
-        sessionManager = new(this);
+        sessionManager = new();
+        PostProcess = DefaultPostProcess;
     }
 
     /// <summary>
@@ -42,7 +45,7 @@ public class Server
         return ret;
     }
 
-    public static string GetExternalIP()
+    private string GetExternalIP()
     {
         string externalIP;
         externalIP = (new WebClient()).DownloadString("http://checkip.dyndns.org/");
@@ -51,17 +54,47 @@ public class Server
         return externalIP;
     }
 
-    private HttpListener InitializeListener(List<IPAddress> localhostIPs)
+    /// <summary>
+    /// Returns the url appended with a / for port 80, otherwise, the [url]:[port]/ if the port is not 80.
+    /// </summary>
+    private string UrlWithPort(string url, int port)
+    {
+        string ret = url + "/";
+
+        if (port != 80)
+        {
+            ret = url + ":" + port.ToString() + "/";
+        }
+
+        return ret;
+    }
+
+    private HttpListener InitializeListener(List<IPAddress> localhostIPs, int port)
     {
         listener = new();
-        listener.Prefixes.Add("http://localhost/");
+        string url = UrlWithPort("http://localhost", port);
+
+        try
+        {
+            listener.Prefixes.Add(url);
+            Console.WriteLine("Listening on " + url);
+        }
+        catch
+        {
+            // Ignore exception, which will occur on AWG servers
+        }
 
         // Listen to IP address as well.
         localhostIPs.ForEach(ip =>
         {
-            Console.WriteLine("Listening on IP " + "http://" + ip.ToString() + "/");
-            listener.Prefixes.Add("http://" + ip.ToString() + "/");
+            url = UrlWithPort("http://" + ip.ToString(), port);
+            Console.WriteLine("Listening on " + url);
+            listener.Prefixes.Add(url);
         });
+
+        // TODO: What's listening on this port that is preventing me from adding an HTTPS listener???  This started all of a sudden after a reboot.
+        // https:
+        //listener.Prefixes.Add("https://localhost:4443/");
 
         return listener;
     }
@@ -114,8 +147,9 @@ public class Server
             string verb = request.HttpMethod; // get, post, delete, etc.
             string parms = request.RawUrl!.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
             
-            Dictionary<string, string> kvParams = GetKeyValues(parms); // Extract into key-value entries.
+            Dictionary<string, object?> kvParams = GetKeyValues(parms); // Extract into key-value entries.
             string data = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
+            Console.WriteLine(data);
             GetKeyValues(data, kvParams);
             Log(kvParams);
 
@@ -165,15 +199,15 @@ public class Server
     /// If a CSRF validation token exists, verify it matches our session value.
     /// If one doesn't exist, issue a warning to the console.
     /// </summary>
-    private bool VerifyCSRF(Session session, string verb, Dictionary<string, string> kvParams)
+    private bool VerifyCSRF(Session session, string verb, Dictionary<string, object?> kvParams)
     {
         bool ret = true;
 
         if (verb.ToLower() != "get")
         {
-            if (kvParams.TryGetValue(ValidationTokenName, out string? token))
+            if (kvParams.TryGetValue(ValidationTokenName, out object? token))
             {
-                ret = session.Objects[ValidationTokenName]?.ToString() == token.ToString();
+                ret = session.Objects[ValidationTokenName]?.ToString() == token?.ToString();
             }
             else
             {
@@ -187,11 +221,34 @@ public class Server
     /// <summary>
     /// Starts the web server.
     /// </summary>
-    public void Start()
+    public void Start(int port = 80, bool acquirePublicIP = false)
     {
+        OnError.IfNull(() => Console.WriteLine("Warning - the onError callback has not been initialized by the application."));
+
+        if (acquirePublicIP)
+        {
+            PublicIP = GetExternalIP();
+            Console.WriteLine("public IP: " + PublicIP);
+        }
+
+
         List<IPAddress> localHostIPs = GetLocalHostIPs();
-        HttpListener listener = InitializeListener(localHostIPs);
+        HttpListener listener = InitializeListener(localHostIPs, port);
         Start(listener);
+    }
+
+    /// <summary>
+    /// Tranform URL or Request Body parameters into key-value pairs in a Dictionary
+    /// </summary>
+    /// <param name="data">URL or Request Body parameters as text</param>
+    /// <param name="kv">optional exisitng key-value parameters</param>
+    /// <returns></returns>
+    private Dictionary<string, object?> GetKeyValues(string data, Dictionary<string, object?>? kv = null)
+    {
+        kv.IfNull(() => kv = new Dictionary<string, object?>());
+        data.If(d => d.Length > 0, (d) => d.Split('&').ForEach(keyValue => kv![keyValue.LeftOf('=')] = keyValue.RightOf('=')));
+
+        return kv!;
     }
 
     /// <summary>
@@ -202,19 +259,21 @@ public class Server
         Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + request.Url?.AbsoluteUri.RightOf('/', 3));
     }
 
-    private Dictionary<string, string> GetKeyValues(string data, Dictionary<string, string>? kv = null)
-    {
-        kv.IfNull(() => kv = new Dictionary<string, string>());
-        data.If(d => d.Length > 0, (d) => d.Split('&').ForEach(keyValue => kv![keyValue.LeftOf('=')] = keyValue.RightOf('=')));
-
-        return kv!;
-    }
-
-    private void Log(Dictionary<string, string> kv)
+    /// <summary>
+    /// Log URL parameters
+    /// </summary>
+    /// <param name="kv"></param>
+    private void Log(Dictionary<string, object?> kv)
     {
         kv.ForEach(kvp => Console.WriteLine(kvp.Key + " : " + kvp.Value));
     }
 
+    /// <summary>
+    /// Handle HttpListener Response
+    /// </summary>
+    /// <param name="request">HttpListener Request</param>
+    /// <param name="response">HttpListener Response</param>
+    /// <param name="resp">ResponsePacket</param>
     private void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket resp)
     {
         if (string.IsNullOrEmpty(resp.Redirect))
@@ -235,11 +294,13 @@ public class Server
 
             if (string.IsNullOrEmpty(PublicIP))
             {
-                response.Redirect("http://" + request.UserHostAddress + resp.Redirect);
+                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + resp.Redirect;
+                response.Redirect(redirectUrl);
             }
             else
             {
-                response.Redirect("http://" + PublicIP + resp.Redirect);
+                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + resp.Redirect;
+                response.Redirect(redirectUrl);
             }
         }
         
@@ -259,6 +320,10 @@ public class Server
         AjaxError,
     }
 
+    /// <summary>
+    /// Add <paramref name="route"/> to routes
+    /// </summary>
+    /// <param name="route"></param>
     public void AddRoute(Route route) => router.AddRoute(route);
 
     /// <summary>
@@ -272,27 +337,25 @@ public class Server
         return ret;
     }
 
-    public string ValidationTokenScript = "<%AntiForgeryToken%>";
-    public string ValidationTokenName = "__CSRFToken__";
-
-    public string PostProcess(Session session, string html)
+    /// <summary>
+    /// Return a ResponsePacket with the specified filePath as the target file to load
+    /// </summary>
+    /// <param name="session">Session</param>
+    /// <param name="filePath">path to file</param>
+    /// <param name="parms">URL paramaters</param>
+    /// <returns>ResponsePacket</returns>
+    public ResponsePacket CustomPath(Session session, string filePath, Dictionary<string, object?> parms)
     {
-        string ret = html.Replace(ValidationTokenScript,
-        "<input name='" +
-        ValidationTokenName +
-        "' type='hidden' value='" +
-        session.Objects[ValidationTokenName]?.ToString() +
-        "' id='#__csrf__'" +
-        "/>");
-
-        return ret;
+        return router.Route(session, Router.GET, filePath, parms);
     }
+
+    public const string ValidationTokenScript = "<%AntiForgeryToken%>";
+    public const string ValidationTokenName = "__CSRFToken__";
 
     /// <summary>
     /// Callable by the application for default handling, therefore must be public.
     /// </summary>
-    // TODO: Implement this as interface with a base class so the app can call the base class default behavior.
-    public string DefaultPostProcess(Session session, string fileName, string html)
+    public string DefaultPostProcess(Session session, Dictionary<string, object?> kvParms, string html)
     {
         string ret = html.Replace(ValidationTokenScript, "<input name=" + ValidationTokenName.SingleQuote() +
             " type='hidden' value=" + session[ValidationTokenName]?.ToString()?.SingleQuote() +
