@@ -2,6 +2,7 @@
 using Chandiman.Extensions;
 using System.Reflection;
 using System.Text;
+using System.Runtime.InteropServices;
 
 namespace ConsoleHttpServer;
 
@@ -44,7 +45,7 @@ internal class Program
             Handler = new AnonymousRouteHandler(server, CustomHandler)   
         });
 
-        server.Start();
+        server.Start(port: 3000);
         Console.ReadLine();
     }
 
@@ -52,7 +53,21 @@ internal class Program
     {
         // Path of our exe.
         string websitePath = Assembly.GetExecutingAssembly().Location;
-        websitePath = websitePath.LeftOfRightmostOf("\\").LeftOfRightmostOf("\\").LeftOfRightmostOf("\\").LeftOfRightmostOf("\\") + "\\Website";
+        char PathSeperator = '/';
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            PathSeperator = '/';
+        }
+        else
+        {
+            PathSeperator = '\\';
+        }
+        websitePath = websitePath
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+         + "/Website";
 
         return websitePath;
     }

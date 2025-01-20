@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using Chandiman.Extensions;
 
@@ -12,6 +13,7 @@ public class Router
     public const string DELETE = "delete";
 
     private string WebsitePath { get; set; }
+    private char PathSeperator { get; set; }
 
     private Dictionary<string, ExtensionInfo> extFolderMap;
 
@@ -20,6 +22,16 @@ public class Router
 
     public Router(string websitePath, Server server)
     {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            PathSeperator = '/';
+        }
+        else
+        {
+            PathSeperator = '\\';
+        }
+
+
         WebsitePath = websitePath;
         serverInstance = server;
 
@@ -96,7 +108,7 @@ public class Router
             }
             
             // Inject the "Pages" folder into the path
-            fullPath = WebsitePath + "\\Pages" + fullPath.RightOf(WebsitePath);
+            fullPath = WebsitePath + PathSeperator + "Pages" + fullPath.RightOf(WebsitePath);
 
             if (!File.Exists(fullPath))
             {
@@ -133,7 +145,7 @@ public class Router
 
         if (extFolderMap.TryGetValue(ext, out extInfo))
         {
-            string wpath = path.Substring(1).Replace('/', '\\'); // Strip off leading '/' and reformat as with windows path separator.
+            string wpath = path.Substring(1).Replace('/', PathSeperator); // Strip off leading '/' and reformat as with windows path separator.
             string fullPath = Path.Combine(WebsitePath, wpath);
 
             Route? route = routes.SingleOrDefault(r => verb == r.Verb.ToLower() && path == r.Path);
