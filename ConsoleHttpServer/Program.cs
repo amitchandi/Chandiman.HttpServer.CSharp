@@ -42,7 +42,8 @@ internal class Program
         {
             Path = "/asd",
             //FilePath = "test"
-            Handler = new AnonymousRouteHandler(server, CustomHandler)   
+            Handler = new AnonymousRouteHandler(server, CustomHandler),
+            
         });
 
         server.Start(port: 3000);

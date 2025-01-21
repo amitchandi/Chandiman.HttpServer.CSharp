@@ -12,8 +12,8 @@ public class Router
     public const string PUT = "put";
     public const string DELETE = "delete";
 
-    private string WebsitePath { get; set; }
-    private char PathSeperator { get; set; }
+    public string WebsitePath { get; set; }
+    public char PathSeperator { get; set; }
 
     private Dictionary<string, ExtensionInfo> extFolderMap;
 
@@ -123,7 +123,7 @@ public class Router
                 text = serverInstance.PostProcess(session, kvParams, text);
 
                 // If a custom post process callback exists, call it.
-                routeHandler.IfNotNull((r) => r!.PostProcess.IfNotNull((p) => text = p!(session, kvParams, text)));
+                routeHandler.IfNotNull((r) => r!.PostProcess.IfNotNull((p) => text = p!(this, session, kvParams, text)));
 
                 // Do our default post process to catch any final CSRF stuff in the fully merged document.
                 text = serverInstance.PostProcess(session, kvParams, text);
@@ -214,5 +214,5 @@ public class Route
     public string Path { get; set; } = "";
     public RouteHandler? Handler { get; set; }
     public string FilePath { get; set; } = "";
-    public Func<Session, Dictionary<string, object?>, string, string>? PostProcess { get; set; }
+    public Func<Router, Session, Dictionary<string, object?>, string, string>? PostProcess { get; set; }
 }
