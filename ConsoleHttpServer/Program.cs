@@ -46,6 +46,11 @@ internal class Program
             
         });
 
+        server.AddRoute(new(){
+            Path = "/test",
+            PostProcess = ReplacePostProcess.Process
+        });
+
         server.Start(port: 3000);
         Console.ReadLine();
     }

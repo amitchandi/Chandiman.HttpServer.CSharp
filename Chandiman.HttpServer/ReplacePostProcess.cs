@@ -5,8 +5,8 @@ namespace Chandiman.HttpServer;
 public class ReplacePostProcess
 {
     const string ReplaceTag = @"<\?(\s).*(Replace.*=.*"".*"").*\?>";
-    const string ReplaceKV = @"Replace.*=.*"".*""";
-    const string TitleKV = @"Title.*=.*"".*""";
+    const string ReplaceKV = @"(?:Replace)(?:\s*=\s*)(['""]).*?\1";
+    const string TitleKV = @"(?:Title)(?:\s*=\s*)(['""]).*?\1";
     /// <summary>
     /// something something darkside
     /// </summary>
@@ -24,9 +24,13 @@ public class ReplacePostProcess
             {
                 throw new Exception("Replace attribute is required.");
             }
-            var file = replaceMatch.Value.RightOf("=").Replace("\"", "").Trim();
+            Console.WriteLine("'{0}' found at index {1}.", replaceMatch.Value, replaceMatch.Index);
+            var file = replaceMatch.Value
+                .Replace("<?", "")
+                .Replace("?>", "")
+                .RightOf("=").Replace("\"", "").Trim();
             
-            ret = File.ReadAllText(router.WebsitePath + router.PathSeperator + file);
+            ret = File.ReadAllText(router.WebsitePath + router.PathSeperator + "Pages" + router.PathSeperator + file);
 
             var titleMatch = Regex.Match(m.Value, TitleKV, options);
             if (titleMatch != null)

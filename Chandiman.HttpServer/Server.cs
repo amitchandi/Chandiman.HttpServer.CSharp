@@ -22,6 +22,7 @@ public class Server
     public Func<ServerError, string>? OnError { get; set; }
 
     public string? PublicIP { get; set; }
+    private int Port { get; set; }
 
     public Func<Session, Dictionary<string, object?>, string, string> PostProcess { get; set; }
 
@@ -71,6 +72,7 @@ public class Server
 
     private HttpListener InitializeListener(List<IPAddress> localhostIPs, int port)
     {
+        Port = port;
         listener = new();
         string url = UrlWithPort("http://localhost", port);
 
@@ -225,12 +227,13 @@ public class Server
     {
         OnError.IfNull(() => Console.WriteLine("Warning - the onError callback has not been initialized by the application."));
 
+
+
         if (acquirePublicIP)
         {
             PublicIP = GetExternalIP();
             Console.WriteLine("public IP: " + PublicIP);
         }
-
 
         List<IPAddress> localHostIPs = GetLocalHostIPs();
         HttpListener listener = InitializeListener(localHostIPs, port);
@@ -294,12 +297,12 @@ public class Server
 
             if (string.IsNullOrEmpty(PublicIP))
             {
-                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + resp.Redirect;
+                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + ":" + request.Url.Port + resp.Redirect;
                 response.Redirect(redirectUrl);
             }
             else
             {
-                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + resp.Redirect;
+                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + ":" + request.Url.Port + resp.Redirect;
                 response.Redirect(redirectUrl);
             }
         }
