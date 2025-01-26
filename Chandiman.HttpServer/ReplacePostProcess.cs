@@ -10,7 +10,7 @@ public class ReplacePostProcess
     /// <summary>
     /// something something darkside
     /// </summary>
-    public static string Process(Router router, Session session, Dictionary<string, object?> kvParms, string html)
+    public static string Process(Website website, Router router, Session session, Dictionary<string, object?> kvParms, string html)
     {
         RegexOptions options = RegexOptions.Multiline | RegexOptions.IgnoreCase;
 
@@ -30,7 +30,7 @@ public class ReplacePostProcess
                 .Replace("?>", "")
                 .RightOf("=").Replace("\"", "").Trim();
             
-            ret = File.ReadAllText(router.WebsitePath + router.PathSeperator + "Pages" + router.PathSeperator + file);
+            ret = File.ReadAllText(website.WebsitePath + router.PathSeperator + "Pages" + router.PathSeperator + file);
 
             var titleMatch = Regex.Match(m.Value, TitleKV, options);
             if (titleMatch != null)

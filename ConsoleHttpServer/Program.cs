@@ -13,7 +13,9 @@ internal class Program
     {
         string websitePath = GetWebsitePath();
 
-        server = new(websitePath);
+        server = new();
+
+        server.AddWebsite("Default", "/", websitePath);
         
         server.OnError = ErrorHandler;
 
@@ -127,6 +129,6 @@ internal class Program
 
     public static ResponsePacket CustomHandler(Session session, Dictionary<string, object?> parms)
     {
-        return server!.CustomPath(session, "/test", parms);
+        return server!.CustomPath("Default", session, "/test", parms);
     }
 }

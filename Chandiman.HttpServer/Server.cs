@@ -12,7 +12,8 @@ public class Server
     public int maxSimultaneousConnections { get; set; } = 20;
     private Semaphore sem { get; set; }
 
-    private Router router { get; set; }
+    private Router Router { get; set; }
+    private Dictionary<string, Website> Websites { get; set; } = [];
     private SessionManager sessionManager { get; set; }
 
     public int expirationTimeSeconds { get; set; } = 60;
@@ -22,16 +23,15 @@ public class Server
     public Func<ServerError, string>? OnError { get; set; }
 
     public string? PublicIP { get; set; }
-    private int Port { get; set; }
 
     public Func<Session, Dictionary<string, object?>, string, string> PostProcess { get; set; }
 
-    public Server(string websitePath)
+    public Server()
     {
         sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
-        router = new(websitePath, this);
         sessionManager = new();
         PostProcess = DefaultPostProcess;
+        Router = new(this);
     }
 
     /// <summary>
@@ -72,7 +72,6 @@ public class Server
 
     private HttpListener InitializeListener(List<IPAddress> localhostIPs, int port)
     {
-        Port = port;
         listener = new();
         string url = UrlWithPort("http://localhost", port);
 
@@ -132,23 +131,24 @@ public class Server
 
         // Wait for a connection. Return to caller while we wait.
         HttpListenerContext context = await listener.GetContextAsync();
+        HttpListenerRequest request = context.Request;
 
-        Session session = sessionManager.GetSession(context.Request.RemoteEndPoint);
+        string path = request.RawUrl!.LeftOf("?"); // Only the path, not any of the parameters
+        string verb = request.HttpMethod; // get, post, delete, etc.
+        string parms = request.RawUrl!.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
+
+        Website website = Websites[path];
+
+        Session session = sessionManager.GetSession(request.RemoteEndPoint);
         OnRequest.IfNotNull(r => r!(session, context));
 
         // Release the semaphore so that another listener can be immediately started up.
         sem.Release();
 
-        Log(context.Request);
-
-        HttpListenerRequest request = context.Request;
+        Log(request);
 
         try
-        {
-            string path = request.RawUrl!.LeftOf("?"); // Only the path, not any of the parameters
-            string verb = request.HttpMethod; // get, post, delete, etc.
-            string parms = request.RawUrl!.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
-            
+        {            
             Dictionary<string, object?> kvParams = GetKeyValues(parms); // Extract into key-value entries.
             string data = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
             Console.WriteLine(data);
@@ -162,7 +162,8 @@ public class Server
             }
             else
             {
-                resp = router!.Route(session, verb, path, kvParams);
+                //resp = router!.Route(session, verb, path, kvParams);
+                resp = Router.Route(website, session, verb, path, kvParams);
 
                 // Update session last connection after getting the response,
                 // as the router itself validates session expiration only on pages requiring authentication.
@@ -225,9 +226,10 @@ public class Server
     /// </summary>
     public void Start(int port = 80, bool acquirePublicIP = false)
     {
+        if (Websites.Count == 0)
+            throw new Exception("Websites must not be empty. You can add a website by running Server.AddWebsite()");
+
         OnError.IfNull(() => Console.WriteLine("Warning - the onError callback has not been initialized by the application."));
-
-
 
         if (acquirePublicIP)
         {
@@ -327,7 +329,7 @@ public class Server
     /// Add <paramref name="route"/> to routes
     /// </summary>
     /// <param name="route"></param>
-    public void AddRoute(Route route) => router.AddRoute(route);
+    public void AddRoute(Route route) => Router.AddRoute(route);
 
     /// <summary>
     /// Return a ResponsePacket with the specified URL and an optional (singular) parameter.
@@ -347,9 +349,9 @@ public class Server
     /// <param name="filePath">path to file</param>
     /// <param name="parms">URL paramaters</param>
     /// <returns>ResponsePacket</returns>
-    public ResponsePacket CustomPath(Session session, string filePath, Dictionary<string, object?> parms)
+    public ResponsePacket CustomPath(string websitepath, Session session, string filePath, Dictionary<string, object?> parms)
     {
-        return router.Route(session, Router.GET, filePath, parms);
+        return Router.Route(Websites[websitepath], session, Router.GET, filePath, parms);
     }
 
     public const string ValidationTokenScript = "<%AntiForgeryToken%>";
@@ -371,4 +373,19 @@ public class Server
 
         return ret;
     }
+
+    public void AddWebsite(string websiteName, string websitePath, string filePath)
+        => Websites.Add(websitePath, new Website
+        { 
+            WebsiteName = websiteName,
+            WebsitePath = websitePath,
+            FilePath = filePath,
+        });
+
+}
+public struct Website
+{
+    public string WebsiteName;
+    public string WebsitePath;
+    public string FilePath;
 }
