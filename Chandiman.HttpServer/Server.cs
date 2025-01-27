@@ -5,7 +5,7 @@ using Chandiman.Extensions;
 
 namespace Chandiman.HttpServer;
 
-public class Server
+public partial class Server
 {
     private HttpListener? listener { get; set; }
 
@@ -13,7 +13,7 @@ public class Server
     private Semaphore sem { get; set; }
 
     private Router Router { get; set; }
-    private Dictionary<string, Website> Websites { get; set; } = [];
+    private Dictionary<string, _Website> Websites { get; set; } = [];
     private SessionManager sessionManager { get; set; }
 
     public int expirationTimeSeconds { get; set; } = 60;
@@ -51,13 +51,15 @@ public class Server
         return Websites.Values.Select(site => site.Port).ToList();
     }
 
-    private string GetExternalIP()
+    [GeneratedRegex(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")]
+    private static partial Regex IPRegex();
+    private static string GetExternalIP()
     {
-        string externalIP;
-        externalIP = (new WebClient()).DownloadString("http://checkip.dyndns.org/");
-        externalIP = (new Regex(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")).Matches(externalIP)[0].ToString();
+        using HttpClient httpClient = new();
+        using var resp = httpClient.GetAsync("http://checkip.dyndns.org/").Result;
 
-        return externalIP;
+        
+        return IPRegex().Matches(resp.Content.ReadAsStringAsync().Result)[0].ToString();
     }
 
     /// <summary>
@@ -147,7 +149,7 @@ public class Server
 
         var website_path = path.RightOf("/").LeftOf("/");
         
-        var website_exists = Websites.TryGetValue(website_path, out Website website);
+        var website_exists = Websites.TryGetValue(website_path, out _Website website);
         if (!website_exists)
             website = Websites[""];
 
@@ -389,16 +391,15 @@ public class Server
     }
 
     public void AddWebsite(string websiteName, string websitePath, string path, int Port)
-        => Websites.Add(path, new Website
+        => Websites.Add(path, new _Website
         { 
             WebsiteName = websiteName,
             WebsitePath = websitePath,
             Path = path,
             Port = Port
         });
-
 }
-public struct Website
+public struct _Website
 {
     public string WebsiteName;
     public string WebsitePath;

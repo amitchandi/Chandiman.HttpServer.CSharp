@@ -52,7 +52,7 @@ public class Router
     /// <summary>
     /// Read in an image file and returns a ResponsePacket with the raw data.
     /// </summary>
-    private ResponsePacket ImageLoader(Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
+    private ResponsePacket ImageLoader(_Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
         FileStream fStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
         BinaryReader br = new BinaryReader(fStream);
@@ -66,7 +66,7 @@ public class Router
     /// <summary>
     /// Read in what is basically a text file and return a ResponsePacket with the text UTF8 encoded.
     /// </summary>
-    private ResponsePacket FileLoader(Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
+    private ResponsePacket FileLoader(_Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
         ResponsePacket ret;
 
@@ -88,7 +88,7 @@ public class Router
     /// Load an HTML file, taking into account missing extensions and a file-less IP/domain, 
     /// which should default to index.html.
     /// </summary>
-    private ResponsePacket PageLoader(Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
+    private ResponsePacket PageLoader(_Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
         ResponsePacket ret;
 
@@ -133,7 +133,7 @@ public class Router
         return ret;
     }
 
-    public ResponsePacket Route(Website website, Session session, string verb, string path, Dictionary<string, object?> kvParams)
+    public ResponsePacket Route(_Website website, Session session, string verb, string path, Dictionary<string, object?> kvParams)
     {
         string ext = path.RightOfRightmostOf('.');
         ExtensionInfo? extInfo;
@@ -192,7 +192,7 @@ public class Router
     internal class ExtensionInfo
     {
         public string? ContentType { get; set; }
-        public Func<Website, Route?, Session, Dictionary<string, object?>, string, string, ExtensionInfo, ResponsePacket>? Loader { get; set; }
+        public Func<_Website, Route?, Session, Dictionary<string, object?>, string, string, ExtensionInfo, ResponsePacket>? Loader { get; set; }
     }
 }
 
@@ -218,5 +218,5 @@ public class Route
     public string Path { get; set; } = "";
     public RouteHandler? Handler { get; set; }
     public string FilePath { get; set; } = "";
-    public Func<Website, Router, Session, Dictionary<string, object?>, string, string>? PostProcess { get; set; }
+    public Func<_Website, Router, Session, Dictionary<string, object?>, string, string>? PostProcess { get; set; }
 }
