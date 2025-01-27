@@ -46,6 +46,11 @@ public class Server
         return ret;
     }
 
+    private List<int> GetLocalHostPorts()
+    {
+        return Websites.Values.Select(site => site.Port).ToList();
+    }
+
     private string GetExternalIP()
     {
         string externalIP;
@@ -70,29 +75,32 @@ public class Server
         return ret;
     }
 
-    private HttpListener InitializeListener(List<IPAddress> localhostIPs, int port)
+    private HttpListener InitializeListener(List<IPAddress> localhostIPs, List<int> ports)
     {
         listener = new();
-        string url = UrlWithPort("http://localhost", port);
 
-        try
+        foreach (var port in ports)
         {
-            listener.Prefixes.Add(url);
-            Console.WriteLine("Listening on " + url);
+            string url = UrlWithPort("http://localhost", port);
+
+            try
+            {
+                listener.Prefixes.Add(url);
+                Console.WriteLine("Listening on " + url);
+            }
+            catch
+            {
+                // Ignore exception, which will occur on AWG servers
+            }
+
+            // Listen to IP address as well.
+            localhostIPs.ForEach(ip =>
+            {
+                url = UrlWithPort("http://" + ip.ToString(), port);
+                Console.WriteLine("Listening on " + url);
+                listener.Prefixes.Add(url);
+            });
         }
-        catch
-        {
-            // Ignore exception, which will occur on AWG servers
-        }
-
-        // Listen to IP address as well.
-        localhostIPs.ForEach(ip =>
-        {
-            url = UrlWithPort("http://" + ip.ToString(), port);
-            Console.WriteLine("Listening on " + url);
-            listener.Prefixes.Add(url);
-        });
-
         // TODO: What's listening on this port that is preventing me from adding an HTTPS listener???  This started all of a sudden after a reboot.
         // https:
         //listener.Prefixes.Add("https://localhost:4443/");
@@ -137,10 +145,10 @@ public class Server
         string verb = request.HttpMethod; // get, post, delete, etc.
         string parms = request.RawUrl!.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
 
-        var asd = path.RightOf("/").LeftOf("/");
-        Console.WriteLine("path: " + asd);
-        var asdd = Websites.TryGetValue(asd, out Website website);
-        if (!asdd)
+        var website_path = path.RightOf("/").LeftOf("/");
+        
+        var website_exists = Websites.TryGetValue(website_path, out Website website);
+        if (!website_exists)
             website = Websites[""];
 
         Session session = sessionManager.GetSession(request.RemoteEndPoint);
@@ -241,7 +249,10 @@ public class Server
         }
 
         List<IPAddress> localHostIPs = GetLocalHostIPs();
-        HttpListener listener = InitializeListener(localHostIPs, port);
+        List<int> ports = GetLocalHostPorts();
+        foreach (var p in ports)
+            Console.WriteLine(p);
+        HttpListener listener = InitializeListener(localHostIPs, ports);
         Start(listener);
     }
 
@@ -377,12 +388,13 @@ public class Server
         return ret;
     }
 
-    public void AddWebsite(string websiteName, string websitePath, string path)
+    public void AddWebsite(string websiteName, string websitePath, string path, int Port)
         => Websites.Add(path, new Website
         { 
             WebsiteName = websiteName,
             WebsitePath = websitePath,
             Path = path,
+            Port = Port
         });
 
 }
@@ -391,4 +403,5 @@ public struct Website
     public string WebsiteName;
     public string WebsitePath;
     public string Path;
+    public int Port;
 }

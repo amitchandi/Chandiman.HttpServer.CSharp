@@ -15,9 +15,9 @@ internal class Program
 
         server = new();
 
-        server.AddWebsite("Default", websitePath, "");
+        server.AddWebsite("Default", websitePath, "", 3000);
 
-        server.AddWebsite("Test", GetTestWebsitePath(), "Test");
+        server.AddWebsite("Test", GetTestWebsitePath(), "Test", 4000);
         
         server.OnError = ErrorHandler;
 
@@ -45,7 +45,6 @@ internal class Program
         server.AddRoute(new Route()
         {
             Path = "/asd",
-            //FilePath = "test"
             Handler = new AnonymousRouteHandler(server, CustomHandler),
             
         });
@@ -63,7 +62,7 @@ internal class Program
     {
         // Path of our exe.
         string websitePath = Assembly.GetExecutingAssembly().Location;
-        char PathSeperator = '/';
+        char PathSeperator;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             PathSeperator = '/';
@@ -86,7 +85,7 @@ internal class Program
     {
         // Path of our exe.
         string websitePath = Assembly.GetExecutingAssembly().Location;
-        char PathSeperator = '/';
+        char PathSeperator;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             PathSeperator = '/';
@@ -107,45 +106,25 @@ internal class Program
 
     public static string ErrorHandler(Server.ServerError error)
     {
-        string ret;
-
-        switch (error)
+        string ret = error switch
         {
-            case Server.ServerError.ExpiredSession:
-                ret = "/ErrorPages/expiredSession.html";
-                break;
-            case Server.ServerError.FileNotFound:
-                ret = "/ErrorPages/fileNotFound.html";
-                break;
-            case Server.ServerError.NotAuthorized:
-                ret = "/ErrorPages/notAuthorized.html";
-                break;
-            case Server.ServerError.PageNotFound:
-                ret = "/ErrorPages/pageNotFound.html";
-                break;
-            case Server.ServerError.ServerError:
-                ret = "/ErrorPages/serverError.html";
-                break;
-            case Server.ServerError.UnknownType:
-                ret = "/ErrorPages/unknownType.html";
-                break;
-            default:
-                ret = "/ErrorPages/serverError.html";
-                break;
-        }
-
+            Server.ServerError.ExpiredSession => "/ErrorPages/expiredSession.html",
+            Server.ServerError.FileNotFound => "/ErrorPages/fileNotFound.html",
+            Server.ServerError.NotAuthorized => "/ErrorPages/notAuthorized.html",
+            Server.ServerError.PageNotFound => "/ErrorPages/pageNotFound.html",
+            Server.ServerError.ServerError => "/ErrorPages/serverError.html",
+            Server.ServerError.UnknownType => "/ErrorPages/unknownType.html",
+            _ => "/ErrorPages/serverError.html",
+        };
         return ret;
     }
 
     public static ResponsePacket RedirectMe(Session session, Dictionary<string, object?> parms)
-    {
-        return server!.Redirect("/Demo/clicked");
-    }
+        => server!.Redirect("/Demo/clicked");
 
     public static ResponsePacket AjaxResponder(Session session, Dictionary<string, object?> parms)
     {
         int number = int.Parse((string)parms["number"]!) + 10;
-        Console.WriteLine(number);
         string data = "You said " + number;
         ResponsePacket ret = new() { Data = Encoding.UTF8.GetBytes(data), ContentType = "text" };
 
@@ -153,7 +132,5 @@ internal class Program
     }
 
     public static ResponsePacket CustomHandler(Session session, Dictionary<string, object?> parms)
-    {
-        return server!.CustomPath("Default", session, "/test", parms);
-    }
+        => server!.CustomPath("Default", session, "/test", parms);
 }
