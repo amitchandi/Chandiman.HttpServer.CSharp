@@ -15,7 +15,9 @@ internal class Program
 
         server = new();
 
-        server.AddWebsite("Default", "/", websitePath);
+        server.AddWebsite("Default", websitePath, "");
+
+        server.AddWebsite("Test", GetTestWebsitePath(), "Test");
         
         server.OnError = ErrorHandler;
 
@@ -80,6 +82,29 @@ internal class Program
         return websitePath;
     }
 
+    public static string GetTestWebsitePath()
+    {
+        // Path of our exe.
+        string websitePath = Assembly.GetExecutingAssembly().Location;
+        char PathSeperator = '/';
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            PathSeperator = '/';
+        }
+        else
+        {
+            PathSeperator = '\\';
+        }
+        websitePath = websitePath
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+         + "/TestWebsite";
+
+        return websitePath;
+    }
+
     public static string ErrorHandler(Server.ServerError error)
     {
         string ret;
@@ -114,7 +139,7 @@ internal class Program
 
     public static ResponsePacket RedirectMe(Session session, Dictionary<string, object?> parms)
     {
-        return server!.Redirect("/demo/clicked");
+        return server!.Redirect("/Demo/clicked");
     }
 
     public static ResponsePacket AjaxResponder(Session session, Dictionary<string, object?> parms)

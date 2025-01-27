@@ -142,8 +142,15 @@ public class Router
 
         if (extFolderMap.TryGetValue(ext, out extInfo))
         {
-            string wpath = path.Substring(1).Replace('/', PathSeperator); // Strip off leading '/' and reformat as with windows path separator.
-            string fullPath = Path.Combine(website.WebsitePath, wpath);
+            string wpath = path.Substring(1).Replace('/', PathSeperator); // Strip off leading '/'
+            if (website.Path != "")
+                wpath = wpath.Replace(website.Path + PathSeperator, "");
+            
+            string fullPath = "";
+            if (wpath == website.Path)
+                fullPath = website.WebsitePath;
+            else
+                fullPath = Path.Combine(website.WebsitePath, wpath);
 
             Route? route = routes.SingleOrDefault(r => verb == r.Verb.ToLower() && path == r.Path);
 

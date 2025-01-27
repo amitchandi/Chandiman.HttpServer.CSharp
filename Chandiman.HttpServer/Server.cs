@@ -137,7 +137,11 @@ public class Server
         string verb = request.HttpMethod; // get, post, delete, etc.
         string parms = request.RawUrl!.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
 
-        Website website = Websites[path];
+        var asd = path.RightOf("/").LeftOf("/");
+        Console.WriteLine("path: " + asd);
+        var asdd = Websites.TryGetValue(asd, out Website website);
+        if (!asdd)
+            website = Websites[""];
 
         Session session = sessionManager.GetSession(request.RemoteEndPoint);
         OnRequest.IfNotNull(r => r!(session, context));
@@ -162,7 +166,6 @@ public class Server
             }
             else
             {
-                //resp = router!.Route(session, verb, path, kvParams);
                 resp = Router.Route(website, session, verb, path, kvParams);
 
                 // Update session last connection after getting the response,
@@ -261,7 +264,7 @@ public class Server
     /// </summary>
     public void Log(HttpListenerRequest request)
     {
-        Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + request.Url?.AbsoluteUri.RightOf('/', 3));
+        Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + request.Url?.AbsoluteUri);
     }
 
     /// <summary>
@@ -374,12 +377,12 @@ public class Server
         return ret;
     }
 
-    public void AddWebsite(string websiteName, string websitePath, string filePath)
-        => Websites.Add(websitePath, new Website
+    public void AddWebsite(string websiteName, string websitePath, string path)
+        => Websites.Add(path, new Website
         { 
             WebsiteName = websiteName,
             WebsitePath = websitePath,
-            FilePath = filePath,
+            Path = path,
         });
 
 }
@@ -387,5 +390,5 @@ public struct Website
 {
     public string WebsiteName;
     public string WebsitePath;
-    public string FilePath;
+    public string Path;
 }
