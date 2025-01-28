@@ -1,4 +1,4 @@
-﻿using Chandiman.HttpServer;
+using Chandiman.HttpServer;
 using Chandiman.Extensions;
 using System.Reflection;
 using System.Text;
@@ -18,7 +18,12 @@ internal class Program
         //server.AddWebsite("Default", websitePath, "", 3000);
 
         //server.AddWebsite("Test", GetTestWebsitePath(), "Test", 4000);
-        
+
+        foreach (var web in server.WebsiteContext.GetWebsites().Result)
+        {
+            Console.WriteLine(web);
+        }
+
         server.OnError = ErrorHandler;
 
         server.OnRequest = (session, context) =>
@@ -46,10 +51,11 @@ internal class Program
         {
             Path = "/asd",
             Handler = new AnonymousRouteHandler(server, CustomHandler),
-            
+
         });
 
-        server.AddRoute(new(){
+        server.AddRoute(new()
+        {
             Path = "/test",
             PostProcess = ReplacePostProcess.Process
         });

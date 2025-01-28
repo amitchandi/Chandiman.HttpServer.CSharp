@@ -34,7 +34,7 @@ namespace Chandiman.HttpServer.Migrations
 
                     b.HasKey("WebsiteId");
 
-                    b.ToTable("Websites");
+                    b.ToTable("Websites", (string)null);
                 });
 #pragma warning restore 612, 618
         }

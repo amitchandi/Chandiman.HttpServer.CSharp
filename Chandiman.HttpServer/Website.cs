@@ -18,6 +18,11 @@ public class WebsiteContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         => optionsBuilder.UseSqlite($"Data Source={DbPath}");
+
+    public async Task<List<Website>> GetWebsites()
+    {
+        return await Websites.ToListAsync();
+    }
 }
 
 public class Website
@@ -26,4 +31,10 @@ public class Website
     public required string WebsitePath { get; set; }
     public required string Path { get; set; }
     public int Port { get; set; }
+
+    public override string ToString()
+    {
+        return "WebsiteId: " + WebsiteId + "\nWebsitePath: " + WebsitePath
+        + "\nPath: " + Path + "\nPort: " + Port;
+    }
 }

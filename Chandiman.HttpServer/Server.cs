@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using Chandiman.Extensions;
@@ -26,7 +26,7 @@ public partial class Server : IDisposable
 
     public Func<Session, Dictionary<string, object?>, string, string> PostProcess { get; set; }
 
-    private WebsiteContext WebsiteContext { get; set; } = new WebsiteContext();
+    public WebsiteContext WebsiteContext { get; set; } = new WebsiteContext();
 
     public Server()
     {
@@ -62,7 +62,7 @@ public partial class Server : IDisposable
         using HttpClient httpClient = new();
         using var resp = httpClient.GetAsync("http://checkip.dyndns.org/").Result;
 
-        
+
         return IPRegex().Matches(resp.Content.ReadAsStringAsync().Result)[0].ToString();
     }
 
@@ -94,8 +94,9 @@ public partial class Server : IDisposable
                 listener.Prefixes.Add(url);
                 Console.WriteLine("Listening on " + url);
             }
-            catch
+            catch (Exception e)
             {
+                Console.WriteLine(e.ToString());
                 // Ignore exception, which will occur on AWG servers
             }
 
@@ -158,7 +159,7 @@ public partial class Server : IDisposable
             .FirstOrDefaultAsync()
             .Result;
         //var website_exists = Websites.TryGetValue(website_path, out Website website);
-        
+
         // TODO: default website under example.com/ could not exist and this would throw an error
         // this was suggested to simplify the null check - seems more confusing
         website ??= WebsiteContext.Websites
@@ -175,7 +176,7 @@ public partial class Server : IDisposable
         Log(request);
 
         try
-        {            
+        {
             Dictionary<string, object?> kvParams = GetKeyValues(parms); // Extract into key-value entries.
             string data = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
             Console.WriteLine(data);
@@ -189,7 +190,7 @@ public partial class Server : IDisposable
             }
             else
             {
-                resp = Router.Route(website, session, verb, path, kvParams);
+                resp = Router.Route(website!, session, verb, path, kvParams);
 
                 // Update session last connection after getting the response,
                 // as the router itself validates session expiration only on pages requiring authentication.
@@ -265,10 +266,15 @@ public partial class Server : IDisposable
 
         List<IPAddress> localHostIPs = GetLocalHostIPs();
         List<int> ports = GetLocalHostPorts();
-        foreach (var p in ports)
-            Console.WriteLine(p);
         HttpListener listener = InitializeListener(localHostIPs, ports);
-        Start(listener);
+        try
+        {
+            Start(listener);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+        }
     }
 
     /// <summary>
@@ -337,7 +343,7 @@ public partial class Server : IDisposable
                 response.Redirect(redirectUrl);
             }
         }
-        
+
         response.OutputStream.Close();
     }
 
@@ -410,14 +416,21 @@ public partial class Server : IDisposable
 
     public void AddWebsite(string websiteName, string websitePath, string path, int Port)
     {
-        WebsiteContext.Websites.Add(new Website
+        try
         {
-            WebsiteId = websiteName,
-            WebsitePath = websitePath,
-            Path = path,
-            Port = Port
-        });
-        WebsiteContext.SaveChanges();
+            WebsiteContext.Websites.Add(new Website
+            {
+                WebsiteId = websiteName,
+                WebsitePath = websitePath,
+                Path = path,
+                Port = Port
+            });
+            WebsiteContext.SaveChanges();
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+        {
+            Console.WriteLine(ex.ToString());
+        }
     }
 
     public void Dispose()

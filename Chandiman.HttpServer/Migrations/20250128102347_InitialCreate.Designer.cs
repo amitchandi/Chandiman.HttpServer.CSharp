@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Chandiman.HttpServer.Migrations
 {
     [DbContext(typeof(WebsiteContext))]
-    [Migration("20250128070321_InitialCreate")]
+    [Migration("20250128102347_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
