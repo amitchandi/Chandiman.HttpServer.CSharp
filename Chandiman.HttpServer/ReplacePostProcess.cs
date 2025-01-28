@@ -10,7 +10,7 @@ public class ReplacePostProcess
     /// <summary>
     /// something something darkside
     /// </summary>
-    public static string Process(_Website website, Router router, Session session, Dictionary<string, object?> kvParms, string html)
+    public static string Process(Website website, Router router, Session session, Dictionary<string, object?> kvParms, string html)
     {
         RegexOptions options = RegexOptions.Multiline | RegexOptions.IgnoreCase;
 

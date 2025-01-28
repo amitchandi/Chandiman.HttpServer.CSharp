@@ -2,10 +2,11 @@
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using Chandiman.Extensions;
+using Microsoft.EntityFrameworkCore;
 
 namespace Chandiman.HttpServer;
 
-public partial class Server
+public partial class Server : IDisposable
 {
     private HttpListener? listener { get; set; }
 
@@ -13,7 +14,6 @@ public partial class Server
     private Semaphore sem { get; set; }
 
     private Router Router { get; set; }
-    private Dictionary<string, _Website> Websites { get; set; } = [];
     private SessionManager sessionManager { get; set; }
 
     public int expirationTimeSeconds { get; set; } = 60;
@@ -25,6 +25,8 @@ public partial class Server
     public string? PublicIP { get; set; }
 
     public Func<Session, Dictionary<string, object?>, string, string> PostProcess { get; set; }
+
+    private WebsiteContext WebsiteContext { get; set; } = new WebsiteContext();
 
     public Server()
     {
@@ -48,7 +50,9 @@ public partial class Server
 
     private List<int> GetLocalHostPorts()
     {
-        return Websites.Values.Select(site => site.Port).ToList();
+        return WebsiteContext.Websites
+            .Select(website => website.Port)
+            .ToList();
     }
 
     [GeneratedRegex(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")]
@@ -148,10 +152,19 @@ public partial class Server
         string parms = request.RawUrl!.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
 
         var website_path = path.RightOf("/").LeftOf("/");
+
+        var website = WebsiteContext.Websites
+            .Where(website => website.Path == website_path)
+            .FirstOrDefaultAsync()
+            .Result;
+        //var website_exists = Websites.TryGetValue(website_path, out Website website);
         
-        var website_exists = Websites.TryGetValue(website_path, out _Website website);
-        if (!website_exists)
-            website = Websites[""];
+        // TODO: default website under example.com/ could not exist and this would throw an error
+        // this was suggested to simplify the null check - seems more confusing
+        website ??= WebsiteContext.Websites
+                .Where(website => website.Path == "")
+                .FirstOrDefaultAsync()
+                .Result;
 
         Session session = sessionManager.GetSession(request.RemoteEndPoint);
         OnRequest.IfNotNull(r => r!(session, context));
@@ -239,7 +252,7 @@ public partial class Server
     /// </summary>
     public void Start(int port = 80, bool acquirePublicIP = false)
     {
-        if (Websites.Count == 0)
+        if (!WebsiteContext.Websites.Any())
             throw new Exception("Websites must not be empty. You can add a website by running Server.AddWebsite()");
 
         OnError.IfNull(() => Console.WriteLine("Warning - the onError callback has not been initialized by the application."));
@@ -358,6 +371,7 @@ public partial class Server
         return ret;
     }
 
+    //TODO: Make async?
     /// <summary>
     /// Return a ResponsePacket with the specified filePath as the target file to load
     /// </summary>
@@ -367,7 +381,11 @@ public partial class Server
     /// <returns>ResponsePacket</returns>
     public ResponsePacket CustomPath(string websitepath, Session session, string filePath, Dictionary<string, object?> parms)
     {
-        return Router.Route(Websites[websitepath], session, Router.GET, filePath, parms);
+        var website = WebsiteContext.Websites
+            .Where(website => website.Path == websitepath)
+            .FirstAsync()
+            .Result;
+        return Router.Route(website, session, Router.GET, filePath, parms);
     }
 
     public const string ValidationTokenScript = "<%AntiForgeryToken%>";
@@ -391,18 +409,19 @@ public partial class Server
     }
 
     public void AddWebsite(string websiteName, string websitePath, string path, int Port)
-        => Websites.Add(path, new _Website
-        { 
-            WebsiteName = websiteName,
+    {
+        WebsiteContext.Websites.Add(new Website
+        {
+            WebsiteId = websiteName,
             WebsitePath = websitePath,
             Path = path,
             Port = Port
         });
-}
-public struct _Website
-{
-    public string WebsiteName;
-    public string WebsitePath;
-    public string Path;
-    public int Port;
+        WebsiteContext.SaveChanges();
+    }
+
+    public void Dispose()
+    {
+        WebsiteContext.Dispose();
+    }
 }

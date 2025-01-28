@@ -15,9 +15,9 @@ internal class Program
 
         server = new();
 
-        server.AddWebsite("Default", websitePath, "", 3000);
+        //server.AddWebsite("Default", websitePath, "", 3000);
 
-        server.AddWebsite("Test", GetTestWebsitePath(), "Test", 4000);
+        //server.AddWebsite("Test", GetTestWebsitePath(), "Test", 4000);
         
         server.OnError = ErrorHandler;
 
