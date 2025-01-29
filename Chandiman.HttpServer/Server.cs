@@ -28,12 +28,16 @@ public partial class Server : IDisposable
 
     public WebsiteContext WebsiteContext { get; set; } = new WebsiteContext();
 
+    private List<Website> Websites { get; set; }
+
     public Server()
     {
         sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
         sessionManager = new();
         PostProcess = DefaultPostProcess;
         Router = new(this);
+        WebsiteContext = new();
+        Websites = WebsiteContext.GetWebsites().Result;
     }
 
     /// <summary>
@@ -154,18 +158,16 @@ public partial class Server : IDisposable
 
         var website_path = path.RightOf("/").LeftOf("/");
 
-        var website = WebsiteContext.Websites
+        var website = Websites
             .Where(website => website.Path == website_path)
-            .FirstOrDefaultAsync()
-            .Result;
+            .FirstOrDefault();
         //var website_exists = Websites.TryGetValue(website_path, out Website website);
 
         // TODO: default website under example.com/ could not exist and this would throw an error
         // this was suggested to simplify the null check - seems more confusing
-        website ??= WebsiteContext.Websites
+        website ??= Websites
                 .Where(website => website.Path == "")
-                .FirstOrDefaultAsync()
-                .Result;
+                .FirstOrDefault();
 
         Session session = sessionManager.GetSession(request.RemoteEndPoint);
         OnRequest.IfNotNull(r => r!(session, context));
@@ -377,7 +379,6 @@ public partial class Server : IDisposable
         return ret;
     }
 
-    //TODO: Make async?
     /// <summary>
     /// Return a ResponsePacket with the specified filePath as the target file to load
     /// </summary>
@@ -387,10 +388,9 @@ public partial class Server : IDisposable
     /// <returns>ResponsePacket</returns>
     public ResponsePacket CustomPath(string websitepath, Session session, string filePath, Dictionary<string, object?> parms)
     {
-        var website = WebsiteContext.Websites
+        var website = Websites
             .Where(website => website.Path == websitepath)
-            .FirstAsync()
-            .Result;
+            .First();
         return Router.Route(website, session, Router.GET, filePath, parms);
     }
 
@@ -414,18 +414,20 @@ public partial class Server : IDisposable
         return ret;
     }
 
-    public void AddWebsite(string websiteName, string websitePath, string path, int Port)
+    public async void AddWebsite(string websiteName, string websitePath, string path, int Port)
     {
         try
         {
-            WebsiteContext.Websites.Add(new Website
+            await WebsiteContext.Websites.AddAsync(new Website
             {
                 WebsiteId = websiteName,
                 WebsitePath = websitePath,
                 Path = path,
                 Port = Port
             });
-            WebsiteContext.SaveChanges();
+            await WebsiteContext.SaveChangesAsync();
+            Websites.Clear();
+            Websites = await WebsiteContext.GetWebsites();
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
         {

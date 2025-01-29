@@ -47,12 +47,12 @@ internal class Program
             Handler = new AnonymousRouteHandler(server, AjaxResponder)
         });
 
-        server.AddRoute(new Route()
-        {
-            Path = "/asd",
-            Handler = new AnonymousRouteHandler(server, CustomHandler),
+        // server.AddRoute(new Route()
+        // {
+        //     Path = "/asd",
+        //     Handler = new AnonymousRouteHandler(server, CustomHandler),
 
-        });
+        // });
 
         server.AddRoute(new()
         {
