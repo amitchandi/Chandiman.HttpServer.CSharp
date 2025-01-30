@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Chandiman.HttpServer;
 
-public partial class Server : IDisposable
+public partial class Server
 {
     private HttpListener? listener { get; set; }
 
@@ -26,8 +26,6 @@ public partial class Server : IDisposable
 
     public Func<Session, Dictionary<string, object?>, string, string> PostProcess { get; set; }
 
-    public WebsiteContext WebsiteContext { get; set; } = new WebsiteContext();
-
     private List<Website> Websites { get; set; }
 
     public Server()
@@ -36,8 +34,8 @@ public partial class Server : IDisposable
         sessionManager = new();
         PostProcess = DefaultPostProcess;
         Router = new(this);
-        WebsiteContext = new();
-        Websites = WebsiteContext.GetWebsites().Result;
+        using WebsiteContext websiteContext = new();
+        Websites = websiteContext.GetWebsites().Result;
     }
 
     /// <summary>
@@ -54,7 +52,8 @@ public partial class Server : IDisposable
 
     private List<int> GetLocalHostPorts()
     {
-        return WebsiteContext.Websites
+        using WebsiteContext websiteContext = new();
+        return websiteContext.Websites
             .Select(website => website.Port)
             .ToList();
     }
@@ -158,16 +157,15 @@ public partial class Server : IDisposable
 
         var website_path = path.RightOf("/").LeftOf("/");
 
+        // TODO: the empty path here is the temp default. this should be configurable in some way
+        var default_website = Websites
+            .Where(website => website.Path == "")
+            .First();
+
         var website = Websites
             .Where(website => website.Path == website_path)
-            .FirstOrDefault();
-        //var website_exists = Websites.TryGetValue(website_path, out Website website);
-
-        // TODO: default website under example.com/ could not exist and this would throw an error
-        // this was suggested to simplify the null check - seems more confusing
-        website ??= Websites
-                .Where(website => website.Path == "")
-                .FirstOrDefault();
+            .DefaultIfEmpty(default_website)
+            .First();
 
         Session session = sessionManager.GetSession(request.RemoteEndPoint);
         OnRequest.IfNotNull(r => r!(session, context));
@@ -255,7 +253,8 @@ public partial class Server : IDisposable
     /// </summary>
     public void Start(int port = 80, bool acquirePublicIP = false)
     {
-        if (!WebsiteContext.Websites.Any())
+        using WebsiteContext websiteContext = new();
+        if (!websiteContext.Websites.Any())
             throw new Exception("Websites must not be empty. You can add a website by running Server.AddWebsite()");
 
         OnError.IfNull(() => Console.WriteLine("Warning - the onError callback has not been initialized by the application."));
@@ -414,29 +413,26 @@ public partial class Server : IDisposable
         return ret;
     }
 
+    //TODO: might remove
     public async void AddWebsite(string websiteName, string websitePath, string path, int Port)
     {
         try
         {
-            await WebsiteContext.Websites.AddAsync(new Website
+            using WebsiteContext websiteContext = new();
+            await websiteContext.Websites.AddAsync(new Website
             {
                 WebsiteId = websiteName,
                 WebsitePath = websitePath,
                 Path = path,
                 Port = Port
             });
-            await WebsiteContext.SaveChangesAsync();
+            await websiteContext.SaveChangesAsync();
             Websites.Clear();
-            Websites = await WebsiteContext.GetWebsites();
+            Websites = await websiteContext.GetWebsites();
         }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+        catch (DbUpdateException ex)
         {
             Console.WriteLine(ex.ToString());
         }
-    }
-
-    public void Dispose()
-    {
-        WebsiteContext.Dispose();
     }
 }

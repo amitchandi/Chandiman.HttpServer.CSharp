@@ -19,9 +19,12 @@ internal class Program
 
         //server.AddWebsite("Test", GetTestWebsitePath(), "Test", 4000);
 
-        foreach (var web in server.WebsiteContext.GetWebsites().Result)
+        using (var websiteContext = new WebsiteContext())
         {
-            Console.WriteLine(web);
+            foreach (var web in websiteContext.GetWebsites().Result)
+            {
+                Console.WriteLine(web);
+            }
         }
 
         server.OnError = ErrorHandler;
