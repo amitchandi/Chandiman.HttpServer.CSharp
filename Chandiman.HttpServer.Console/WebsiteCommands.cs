@@ -9,5 +9,6 @@ public partial class Program
         Add_AddWebsiteCommand(websiteCommand);
         Add_ListWebsiteCommand(websiteCommand);
         Add_DeleteWebsiteCommand(websiteCommand);
+        Add_UpdateWebsiteCommand(websiteCommand);
     }
 }

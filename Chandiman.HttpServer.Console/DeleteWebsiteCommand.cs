@@ -23,6 +23,11 @@ public partial class Program
             {
                 using WebsiteContext websiteContext = new();
                 var website = await websiteContext.GetWebsiteById(id);
+                if (website is null)
+                {
+                    System.Console.WriteLine($"Webstite with id:{id} does not exist.");
+                    return;
+                }
                 await websiteContext.DeleteWebsite(website);
                 await websiteContext.SaveChangesAsync();
                 System.Console.WriteLine("Website was successfully deleted.");

@@ -190,7 +190,15 @@ public partial class Server
             }
             else
             {
-                resp = Router.Route(website!, session, verb, path, kvParams);
+                if (request.Url?.Port != website.Port)
+                {
+                    resp = new ResponsePacket()
+                    {
+                        Error = ServerError.PageNotFound
+                    };
+                }
+                else
+                    resp = Router.Route(website, session, verb, path, kvParams);
 
                 // Update session last connection after getting the response,
                 // as the router itself validates session expiration only on pages requiring authentication.
@@ -296,18 +304,14 @@ public partial class Server
     /// Log requests.
     /// </summary>
     public void Log(HttpListenerRequest request)
-    {
-        Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + request.Url?.AbsoluteUri);
-    }
+        => Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + request.Url?.AbsoluteUri);
 
     /// <summary>
     /// Log URL parameters
     /// </summary>
     /// <param name="kv"></param>
     private void Log(Dictionary<string, object?> kv)
-    {
-        kv.ForEach(kvp => Console.WriteLine(kvp.Key + " : " + kvp.Value));
-    }
+        => kv.ForEach(kvp => Console.WriteLine(kvp.Key + " : " + kvp.Value));
 
     /// <summary>
     /// Handle HttpListener Response

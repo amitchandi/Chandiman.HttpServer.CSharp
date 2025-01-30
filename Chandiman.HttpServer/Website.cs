@@ -26,15 +26,15 @@ public class WebsiteContext : DbContext
     public async Task<List<Website>> GetWebsites()
         => await Websites.ToListAsync();
 
-    public async Task<Website> GetWebsiteByPath(string path)
+    public async Task<Website?> GetWebsiteByPath(string path)
         => await Websites
             .Where(website => website.Path == path)
-            .FirstAsync();
+            .FirstOrDefaultAsync();
 
-    public async Task<Website> GetWebsiteById(string id)
+    public async Task<Website?> GetWebsiteById(string id)
         => await Websites
             .Where(website => website.WebsiteId == id)
-            .FirstAsync();
+            .FirstOrDefaultAsync();
 
     public async Task AddWebsite(Website website)
     {
