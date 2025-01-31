@@ -1,6 +1,6 @@
 using System.CommandLine;
 
-namespace Chandiman.HttpServer.Console;
+namespace Chandiman.HttpServer.ConsoleApp;
 
 public partial class Program
 {
@@ -25,12 +25,13 @@ public partial class Program
         );
         updateWebsiteCommand.Add(newWebsiteIdOption);
 
-        var websitePathOption = new Option<string?>(
+        var locationOption = new Option<string?>(
             name: "--wpath",
             description: "new physical to the website source directory.",
             getDefaultValue: () => null
         );
-        updateWebsiteCommand.Add(websitePathOption);
+        locationOption.AddAlias("--l");
+        updateWebsiteCommand.Add(locationOption);
 
         var pathOption = new Option<string?>(
             name: "--path",
@@ -46,21 +47,21 @@ public partial class Program
         );
         updateWebsiteCommand.Add(portOption);
 
-        updateWebsiteCommand.SetHandler(async (websiteId, newId, websitePath, path, port) =>
+        updateWebsiteCommand.SetHandler(async (websiteId, newId, location, path, port) =>
         {
             using WebsiteContext websiteContext = new();
             var website = await websiteContext.GetWebsiteById(websiteId);
 
             if (website is null)
             {
-                System.Console.WriteLine($"Webstite with id:{websiteId} does not exist.");
+                Console.WriteLine($"Webstite with id:{websiteId} does not exist.");
                 return;
             }
 
             await websiteContext.DeleteWebsite(website);
 
-            if (newId != null) website.WebsiteId = newId;
-            if (websitePath != null) website.WebsitePath = websitePath;
+            if (newId != null) website.Id = newId;
+            if (location != null) website.Location = location;
             if (path != null) website.Path = path;
             if (port > 0) website.Port = port;
 
@@ -69,7 +70,7 @@ public partial class Program
         },
         websiteIdArg,
         newWebsiteIdOption,
-        websitePathOption,
+        locationOption,
         pathOption,
         portOption
         );

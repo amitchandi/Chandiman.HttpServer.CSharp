@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
 using Chandiman.Extensions;
@@ -85,14 +85,14 @@ public class Router
     }
 
     /// <summary>
-    /// Load an HTML file, taking into account missing extensions and a file-less IP/domain, 
+    /// Load an HTML file, taking into account missing extensions and a file-less IP/domain,
     /// which should default to index.html.
     /// </summary>
     private ResponsePacket PageLoader(Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
         ResponsePacket ret;
 
-        if (fullPath == website.WebsitePath) // If nothing follows the domain name or IP, then default to loading index.html.
+        if (fullPath == website.Location) // If nothing follows the domain name or IP, then default to loading index.html.
         {
             ret = Route(website, session, GET, "/index.html", []);
         }
@@ -103,9 +103,9 @@ public class Router
                 // No extension, so we make it ".html"
                 fullPath += ".html";
             }
-            
+
             // Inject the "Pages" folder into the path
-            fullPath = website.WebsitePath + PathSeperator + "Pages" + fullPath.RightOf(website.WebsitePath);
+            fullPath = website.Location + PathSeperator + "Pages" + fullPath.RightOf(website.Location);
 
             if (!File.Exists(fullPath))
             {
@@ -145,12 +145,12 @@ public class Router
             string wpath = path.Substring(1).Replace('/', PathSeperator); // Strip off leading '/'
             if (website.Path != "")
                 wpath = wpath.Replace(website.Path + PathSeperator, "");
-            
+
             string fullPath = "";
             if (wpath == website.Path)
-                fullPath = website.WebsitePath;
+                fullPath = website.Location;
             else
-                fullPath = Path.Combine(website.WebsitePath, wpath);
+                fullPath = Path.Combine(website.Location, wpath);
 
             Route? route = routes.SingleOrDefault(r => verb == r.Verb.ToLower() && path == r.Path);
 
@@ -163,7 +163,7 @@ public class Router
                 {
                     if (!route.FilePath.IsEmpty())
                     {
-                        fullPath = Path.Combine(website.WebsitePath, route.FilePath);
+                        fullPath = Path.Combine(website.Location, route.FilePath);
                     }
 
                     // Respond with default content loader.
@@ -204,6 +204,7 @@ public class ResponsePacket
     public Encoding? Encoding { get; set; }
     public Server.ServerError Error { get; set; }
     public HttpStatusCode? StatusCode { get; set; }
+    public int? Port { get; set; }
 
     public ResponsePacket()
     {

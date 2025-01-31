@@ -15,14 +15,6 @@ internal class Program
 
         server = new();
 
-        using (var websiteContext = new WebsiteContext())
-        {
-            foreach (var web in websiteContext.GetWebsites().Result)
-            {
-                Console.WriteLine(web);
-            }
-        }
-
         server.OnError = ErrorHandler;
 
         server.OnRequest = (session, context) =>
@@ -109,7 +101,7 @@ internal class Program
         return websitePath;
     }
 
-    public static string ErrorHandler(Server.ServerError error)
+    public static (string websiteId, string redirect) ErrorHandler(Server.ServerError error)
     {
         string ret = error switch
         {
@@ -121,7 +113,7 @@ internal class Program
             Server.ServerError.UnknownType => "/ErrorPages/unknownType.html",
             _ => "/ErrorPages/serverError.html",
         };
-        return ret;
+        return ("Default", ret);
     }
 
     public static ResponsePacket RedirectMe(Session session, Dictionary<string, object?> parms)

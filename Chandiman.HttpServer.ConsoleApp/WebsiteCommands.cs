@@ -1,6 +1,6 @@
 using System.CommandLine;
 
-namespace Chandiman.HttpServer.Console;
+namespace Chandiman.HttpServer.ConsoleApp;
 
 public partial class Program
 {

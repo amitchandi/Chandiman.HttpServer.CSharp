@@ -33,7 +33,7 @@ public class WebsiteContext : DbContext
 
     public async Task<Website?> GetWebsiteById(string id)
         => await Websites
-            .Where(website => website.WebsiteId == id)
+            .Where(website => website.Id == id)
             .FirstOrDefaultAsync();
 
     public async Task AddWebsite(Website website)
@@ -51,14 +51,14 @@ public class WebsiteContext : DbContext
 
 public class Website
 {
-    public required string WebsiteId { get; set; }
-    public required string WebsitePath { get; set; }
+    public required string Id { get; set; }
+    public required string Location { get; set; }
     public required string Path { get; set; }
     public int Port { get; set; }
 
     public override string ToString()
     {
-        return "WebsiteId: " + WebsiteId + "\nWebsitePath: " + WebsitePath
+        return "Id: " + Id + "\nLocation: " + Location
         + "\nPath: " + Path + "\nPort: " + Port;
     }
 }

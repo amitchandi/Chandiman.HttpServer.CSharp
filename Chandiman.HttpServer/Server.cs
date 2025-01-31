@@ -20,7 +20,7 @@ public partial class Server
 
     public Action<Session, HttpListenerContext>? OnRequest { get; set; }
 
-    public Func<ServerError, string>? OnError { get; set; }
+    public Func<ServerError, (string websiteId, string redirect)>? OnError { get; set; }
 
     public string? PublicIP { get; set; }
 
@@ -206,7 +206,12 @@ public partial class Server
 
                 if (resp.Error != ServerError.OK)
                 {
-                    resp.Redirect = OnError.IfNotNullReturn((OnError) => OnError!(resp.Error));
+                    var (websiteId, redirect) = OnError.IfNotNullReturn((OnError) => OnError!(resp.Error));
+                    website = Websites
+                        .Where(website => website.Id == websiteId)
+                        .First();
+                    resp.Redirect = redirect;
+                    resp.Port = website.Port;
                 }
 
                 try
@@ -225,9 +230,14 @@ public partial class Server
         {
             Console.WriteLine(ex.Message);
             Console.WriteLine(ex.StackTrace);
+            var (websiteId, redirect) = OnError.IfNotNullReturn((OnError) => OnError!(ServerError.ServerError));
+            website = Websites
+                .Where(website => website.Id == websiteId)
+                .First();
             resp = new ResponsePacket()
             {
-                Redirect = OnError.IfNotNullReturn((OnError) => OnError!(ServerError.ServerError))
+                Redirect = redirect,
+                Port = website.Port
             };
             Respond(context.Request, context.Response, resp);
         }
@@ -336,17 +346,10 @@ public partial class Server
         else
         {
             response.StatusCode = (int)HttpStatusCode.Redirect;
-
-            if (string.IsNullOrEmpty(PublicIP))
-            {
-                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + ":" + request.Url.Port + resp.Redirect;
-                response.Redirect(redirectUrl);
-            }
-            else
-            {
-                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + ":" + request.Url.Port + resp.Redirect;
-                response.Redirect(redirectUrl);
-            }
+            // TODO: maybe rework OnError.
+            // Check if response packet has Port. This is for redirecting errors from other websites to website with error pages.
+            string redirectUrl = request.Url!.Scheme + "://" + request.Url.Host + ":" + (resp.Port ?? request.Url.Port) + resp.Redirect;
+            response.Redirect(redirectUrl);
         }
 
         response.OutputStream.Close();
@@ -425,8 +428,8 @@ public partial class Server
             using WebsiteContext websiteContext = new();
             await websiteContext.Websites.AddAsync(new Website
             {
-                WebsiteId = websiteName,
-                WebsitePath = websitePath,
+                Id = websiteName,
+                Location = websitePath,
                 Path = path,
                 Port = Port
             });

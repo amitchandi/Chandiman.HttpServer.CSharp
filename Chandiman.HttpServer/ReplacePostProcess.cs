@@ -29,8 +29,8 @@ public class ReplacePostProcess
                 .Replace("<?", "")
                 .Replace("?>", "")
                 .RightOf("=").Replace("\"", "").Trim();
-            
-            ret = File.ReadAllText(website.WebsitePath + router.PathSeperator + "Pages" + router.PathSeperator + file);
+
+            ret = File.ReadAllText(website.Path + router.PathSeperator + "Pages" + router.PathSeperator + file);
 
             var titleMatch = Regex.Match(m.Value, TitleKV, options);
             if (titleMatch != null)

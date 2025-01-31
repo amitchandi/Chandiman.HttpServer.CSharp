@@ -1,6 +1,6 @@
 using System.CommandLine;
 
-namespace Chandiman.HttpServer.Console;
+namespace Chandiman.HttpServer.ConsoleApp;
 
 partial class Program
 {
@@ -15,7 +15,7 @@ partial class Program
 
         rootCommand.SetHandler((listWebsite) =>
         {
-            System.Console.WriteLine("nothing");
+            Console.WriteLine("nothing here yet");
         });
 
         return await rootCommand.InvokeAsync(args);

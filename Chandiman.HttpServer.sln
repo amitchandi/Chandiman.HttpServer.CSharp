@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chandiman.Extensions", "Cha
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleHttpServer", "ConsoleHttpServer\ConsoleHttpServer.csproj", "{46B6B8EB-F7AE-4685-B10A-DACEE9A9441B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chandiman.HttpServer.Console", "Chandiman.HttpServer.Console\Chandiman.HttpServer.Console.csproj", "{67E61519-885D-449F-833D-66B5B7A39355}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chandiman.HttpServer.Console", "Chandiman.HttpServer.ConsoleApp\Chandiman.HttpServer.ConsoleApp.csproj", "{67E61519-885D-449F-833D-66B5B7A39355}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

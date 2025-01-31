@@ -1,6 +1,6 @@
 using System.CommandLine;
 
-namespace Chandiman.HttpServer.Console;
+namespace Chandiman.HttpServer.ConsoleApp;
 
 public partial class Program
 {
@@ -17,7 +17,7 @@ public partial class Program
             using WebsiteContext websiteContext = new();
             var list = await websiteContext.GetWebsites();
             foreach (var website in list)
-                System.Console.WriteLine(website + "\n");
+                Console.WriteLine(website + "\n");
         });
     }
 }

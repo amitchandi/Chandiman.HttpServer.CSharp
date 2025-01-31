@@ -1,6 +1,6 @@
 using System.CommandLine;
 
-namespace Chandiman.HttpServer.Console;
+namespace Chandiman.HttpServer.ConsoleApp;
 
 public partial class Program
 {
@@ -25,17 +25,17 @@ public partial class Program
                 var website = await websiteContext.GetWebsiteById(id);
                 if (website is null)
                 {
-                    System.Console.WriteLine($"Webstite with id:{id} does not exist.");
+                    Console.WriteLine($"Webstite with id:{id} does not exist.");
                     return;
                 }
                 await websiteContext.DeleteWebsite(website);
                 await websiteContext.SaveChangesAsync();
-                System.Console.WriteLine("Website was successfully deleted.");
+                Console.WriteLine("Website was successfully deleted.");
             }
             catch (Exception ex)
             {
-                System.Console.WriteLine("Something went wrong.");
-                System.Console.WriteLine(ex);
+                Console.WriteLine("Something went wrong.");
+                Console.WriteLine(ex);
             }
         }, idArg);
 
