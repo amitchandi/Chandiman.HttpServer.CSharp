@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AvaloniaProject">
+    <option name="projectPerEditor">
+      <map>
+        <entry key="Chandiman.HttpServer.GUI/App.axaml" value="Chandiman.HttpServer.GUI/Chandiman.HttpServer.GUI.csproj" />
+        <entry key="Chandiman.HttpServer.GUI/MainWindow.axaml" value="Chandiman.HttpServer.GUI/Chandiman.HttpServer.GUI.csproj" />
+      </map>
+    </option>
+  </component>
+</project>
