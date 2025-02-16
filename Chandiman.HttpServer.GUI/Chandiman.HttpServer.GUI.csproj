@@ -19,8 +19,4 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
   </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Chandiman.HttpServer\Chandiman.HttpServer.csproj" />
-  </ItemGroup>
 </Project>

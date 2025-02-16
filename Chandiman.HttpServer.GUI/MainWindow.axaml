@@ -5,22 +5,18 @@
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="Chandiman.HttpServer.GUI.MainWindow"
         Title="Chandiman.HttpServer.GUI"
-        TransparencyLevelHint="AcrylicBlur"
-        Background="Transparent"
-        ExtendClientAreaToDecorationsHint="True">
-    <Panel>
-        <ExperimentalAcrylicBorder IsHitTestVisible="False">
-            <ExperimentalAcrylicBorder.Material>
-                <ExperimentalAcrylicMaterial
-                    BackgroundSource="Digger"
-                    TintColor="Black"
-                    TintOpacity="1"
-                    MaterialOpacity="0.65" />
-            </ExperimentalAcrylicBorder.Material>
-        </ExperimentalAcrylicBorder>
-        <StackPanel>
-            <TextBlock>Welcome to Avalonia!</TextBlock>
-            <TextBlock>asd</TextBlock>
-        </StackPanel>
-    </Panel>
+		TransparencyLevelHint="AcrylicBlur"
+        Background="Transparent">
+	<Panel>
+		<ExperimentalAcrylicBorder IsHitTestVisible="False">
+			<ExperimentalAcrylicBorder.Material>
+				<ExperimentalAcrylicMaterial
+					BackgroundSource="Digger"
+					TintColor="Black"
+					TintOpacity="1"
+					MaterialOpacity="0.65" />
+			</ExperimentalAcrylicBorder.Material>
+				<TextBlock>App</TextBlock>
+		</ExperimentalAcrylicBorder>
+	</Panel>
 </Window>
