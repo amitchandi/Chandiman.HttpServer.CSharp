@@ -3,10 +3,22 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-        x:Class="Chandiman.HttpServer.GUI.MainWindow"
         Title="Chandiman.HttpServer.GUI"
 		TransparencyLevelHint="AcrylicBlur"
-        Background="Transparent">
+        Background="Transparent"
+        
+        x:Class="Chandiman.HttpServer.GUI.MainWindow"
+        xmlns:vm="using:Chandiman.HttpServer.GUI.ViewModels"
+        x:DataType="vm:MainWindowViewModel"
+        >
+	
+	<Design.DataContext>
+		<!-- This only sets the DataContext for the previewer in an IDE,
+	             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+		<vm:MainWindowViewModel/>
+	</Design.DataContext>
+
+	
 	<Panel>
 		<ExperimentalAcrylicBorder IsHitTestVisible="False">
 			<ExperimentalAcrylicBorder.Material>
@@ -16,7 +28,22 @@
 					TintOpacity="1"
 					MaterialOpacity="0.65" />
 			</ExperimentalAcrylicBorder.Material>
-				<TextBlock>App</TextBlock>
+				<StackPanel>
+					<TextBlock Text="{Binding Greeting}"></TextBlock>
+					
+					<DataGrid Margin="20" ItemsSource="{Binding Websites}" 
+					          IsReadOnly="True" 
+					          GridLinesVisibility="All"
+					          BorderThickness="1" BorderBrush="Gray" Height="300">
+						<DataGrid.Columns>
+							<DataGridTextColumn Header="Id"  Binding="{Binding Id }"/>
+							<DataGridTextColumn Header="Location"  Binding="{Binding Location }"/>
+							<DataGridTextColumn Header="Path"  Binding="{Binding Path }"/>
+							<DataGridTextColumn Header="Port"  Binding="{Binding Port }"/>
+						</DataGrid.Columns>
+						
+					</DataGrid>
+				</StackPanel>	
 		</ExperimentalAcrylicBorder>
 	</Panel>
 </Window>

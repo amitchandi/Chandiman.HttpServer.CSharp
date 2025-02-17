@@ -8,4 +8,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
     }
+
+    async void LoadWebsites()
+    {
+        using WebsiteContext ctx = new WebsiteContext();
+        var websites = await ctx.GetWebsites();
+        
+    }
 }
