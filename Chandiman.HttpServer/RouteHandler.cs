@@ -1,4 +1,4 @@
-﻿using Chandiman.Extensions;
+using Chandiman.Extensions;
 
 namespace Chandiman.HttpServer;
 /// <summary>
@@ -54,8 +54,10 @@ public class AuthenticatedRouteHandler : RouteHandler
         }
         else
         {
+            // TODO: possible issue
+            Console.WriteLine("Reached AuthenticatedRouteHandler");
             ret = server.OnError.IfNotNullReturn((OnError)
-                => server.Redirect(OnError!(Server.ServerError.NotAuthorized)));
+                => server.Redirect(OnError!(Server.ServerError.NotAuthorized).redirect));
         }
 
         return ret;
@@ -79,9 +81,11 @@ public class AuthenticatedExpirableRouteHandler : AuthenticatedRouteHandler
         if (session.IsExpired(server.expirationTimeSeconds))
         {
             session.Authenticated = false;
-            
+
+            // TODO: possible issue
+            Console.WriteLine("Reached AuthenticatedExpirableRouteHandler");
             ret = server.OnError.IfNotNullReturn((OnError)
-                => server.Redirect(OnError!(Server.ServerError.ExpiredSession)));
+                => server.Redirect(OnError!(Server.ServerError.ExpiredSession).redirect));
         }
         else
         {

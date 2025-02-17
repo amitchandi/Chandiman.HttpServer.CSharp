@@ -1,7 +1,8 @@
-﻿using Chandiman.HttpServer;
+using Chandiman.HttpServer;
 using Chandiman.Extensions;
 using System.Reflection;
 using System.Text;
+using System.Runtime.InteropServices;
 
 namespace ConsoleHttpServer;
 
@@ -12,8 +13,8 @@ internal class Program
     {
         string websitePath = GetWebsitePath();
 
-        server = new(websitePath);
-        
+        server = new();
+
         server.OnError = ErrorHandler;
 
         server.OnRequest = (session, context) =>
@@ -37,14 +38,20 @@ internal class Program
             Handler = new AnonymousRouteHandler(server, AjaxResponder)
         });
 
-        server.AddRoute(new Route()
+        // server.AddRoute(new Route()
+        // {
+        //     Path = "/asd",
+        //     Handler = new AnonymousRouteHandler(server, CustomHandler),
+
+        // });
+
+        server.AddRoute(new()
         {
-            Path = "/asd",
-            //FilePath = "test"
-            Handler = new AnonymousRouteHandler(server, CustomHandler)   
+            Path = "/test",
+            PostProcess = ReplacePostProcess.Process
         });
 
-        server.Start();
+        server.Start(port: 3000);
         Console.ReadLine();
     }
 
@@ -52,52 +59,69 @@ internal class Program
     {
         // Path of our exe.
         string websitePath = Assembly.GetExecutingAssembly().Location;
-        websitePath = websitePath.LeftOfRightmostOf("\\").LeftOfRightmostOf("\\").LeftOfRightmostOf("\\").LeftOfRightmostOf("\\") + "\\Website";
+        char PathSeperator;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            PathSeperator = '/';
+        }
+        else
+        {
+            PathSeperator = '\\';
+        }
+        websitePath = websitePath
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+         + "/Website";
 
         return websitePath;
     }
 
-    public static string ErrorHandler(Server.ServerError error)
+    public static string GetTestWebsitePath()
     {
-        string ret;
-
-        switch (error)
+        // Path of our exe.
+        string websitePath = Assembly.GetExecutingAssembly().Location;
+        char PathSeperator;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            case Server.ServerError.ExpiredSession:
-                ret = "/ErrorPages/expiredSession.html";
-                break;
-            case Server.ServerError.FileNotFound:
-                ret = "/ErrorPages/fileNotFound.html";
-                break;
-            case Server.ServerError.NotAuthorized:
-                ret = "/ErrorPages/notAuthorized.html";
-                break;
-            case Server.ServerError.PageNotFound:
-                ret = "/ErrorPages/pageNotFound.html";
-                break;
-            case Server.ServerError.ServerError:
-                ret = "/ErrorPages/serverError.html";
-                break;
-            case Server.ServerError.UnknownType:
-                ret = "/ErrorPages/unknownType.html";
-                break;
-            default:
-                ret = "/ErrorPages/serverError.html";
-                break;
+            PathSeperator = '/';
         }
+        else
+        {
+            PathSeperator = '\\';
+        }
+        websitePath = websitePath
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+            .LeftOfRightmostOf(PathSeperator)
+         + "/TestWebsite";
 
-        return ret;
+        return websitePath;
+    }
+
+    public static (string websiteId, string redirect) ErrorHandler(Server.ServerError error)
+    {
+        string ret = error switch
+        {
+            Server.ServerError.ExpiredSession => "/ErrorPages/expiredSession.html",
+            Server.ServerError.FileNotFound => "/ErrorPages/fileNotFound.html",
+            Server.ServerError.NotAuthorized => "/ErrorPages/notAuthorized.html",
+            Server.ServerError.PageNotFound => "/ErrorPages/pageNotFound.html",
+            Server.ServerError.ServerError => "/ErrorPages/serverError.html",
+            Server.ServerError.UnknownType => "/ErrorPages/unknownType.html",
+            _ => "/ErrorPages/serverError.html",
+        };
+        return ("Default", ret);
     }
 
     public static ResponsePacket RedirectMe(Session session, Dictionary<string, object?> parms)
-    {
-        return server!.Redirect("/demo/clicked");
-    }
+        => server!.Redirect("/Demo/clicked");
 
     public static ResponsePacket AjaxResponder(Session session, Dictionary<string, object?> parms)
     {
         int number = int.Parse((string)parms["number"]!) + 10;
-        Console.WriteLine(number);
         string data = "You said " + number;
         ResponsePacket ret = new() { Data = Encoding.UTF8.GetBytes(data), ContentType = "text" };
 
@@ -105,7 +129,5 @@ internal class Program
     }
 
     public static ResponsePacket CustomHandler(Session session, Dictionary<string, object?> parms)
-    {
-        return server!.CustomPath(session, "/test", parms);
-    }
+        => server!.CustomPath("Default", session, "/test", parms);
 }
