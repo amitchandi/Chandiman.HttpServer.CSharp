@@ -40,15 +40,15 @@ public partial class Program
             if (path == "/") path = "";
             try
             {
-                using WebsiteContext ctx = new();
-                await ctx.AddAsync(new Website()
-                {
-                    Id = id,
-                    Location = location,
-                    Path = path,
-                    Port = port
-                });
-                await ctx.SaveChangesAsync();
+                // using WebsiteContext ctx = new();
+                // await ctx.AddAsync(new Website()
+                // {
+                //     Id = id,
+                //     Location = location,
+                //     Path = path,
+                //     Port = port
+                // });
+                // await ctx.SaveChangesAsync();
                 Console.WriteLine("Website successfully inserted.");
             }
             catch (Exception ex)

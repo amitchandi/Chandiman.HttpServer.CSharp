@@ -21,15 +21,15 @@ public partial class Program
         {
             try
             {
-                using WebsiteContext websiteContext = new();
-                var website = await websiteContext.GetWebsiteById(id);
-                if (website is null)
-                {
-                    Console.WriteLine($"Webstite with id:{id} does not exist.");
-                    return;
-                }
-                await websiteContext.DeleteWebsite(website);
-                await websiteContext.SaveChangesAsync();
+                // using WebsiteContext websiteContext = new();
+                // var website = await websiteContext.GetWebsiteById(id);
+                // if (website is null)
+                // {
+                //     Console.WriteLine($"Webstite with id:{id} does not exist.");
+                //     return;
+                // }
+                // await websiteContext.DeleteWebsite(website);
+                // await websiteContext.SaveChangesAsync();
                 Console.WriteLine("Website was successfully deleted.");
             }
             catch (Exception ex)

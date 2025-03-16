@@ -13,7 +13,8 @@ internal class Program
     {
         string websitePath = GetWebsitePath();
 
-        server = new();
+
+        server = new("/home/toshi/config.yml");
 
         server.OnError = ErrorHandler;
 
@@ -113,7 +114,7 @@ internal class Program
             Server.ServerError.UnknownType => "/ErrorPages/unknownType.html",
             _ => "/ErrorPages/serverError.html",
         };
-        return ("Default", ret);
+        return ("default", ret);
     }
 
     public static ResponsePacket RedirectMe(Session session, Dictionary<string, object?> parms)

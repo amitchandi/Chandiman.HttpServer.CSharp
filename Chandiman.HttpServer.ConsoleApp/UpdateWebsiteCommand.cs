@@ -49,24 +49,24 @@ public partial class Program
 
         updateWebsiteCommand.SetHandler(async (websiteId, newId, location, path, port) =>
         {
-            using WebsiteContext websiteContext = new();
-            var website = await websiteContext.GetWebsiteById(websiteId);
+            // using WebsiteContext websiteContext = new();
+            // var website = await websiteContext.GetWebsiteById(websiteId);
 
-            if (website is null)
-            {
-                Console.WriteLine($"Webstite with id:{websiteId} does not exist.");
-                return;
-            }
-
-            await websiteContext.DeleteWebsite(website);
-
-            if (newId != null) website.Id = newId;
-            if (location != null) website.Location = location;
-            if (path != null) website.Path = path;
-            if (port > 0) website.Port = port;
-
-            await websiteContext.Websites.AddAsync(website);
-            await websiteContext.SaveChangesAsync();
+            // if (website is null)
+            // {
+            //     Console.WriteLine($"Webstite with id:{websiteId} does not exist.");
+            //     return;
+            // }
+            //
+            // await websiteContext.DeleteWebsite(website);
+            //
+            // if (newId != null) website.Id = newId;
+            // if (location != null) website.Location = location;
+            // if (path != null) website.Path = path;
+            // if (port > 0) website.Port = port;
+            //
+            // await websiteContext.Websites.AddAsync(website);
+            // await websiteContext.SaveChangesAsync();
         },
         websiteIdArg,
         newWebsiteIdOption,

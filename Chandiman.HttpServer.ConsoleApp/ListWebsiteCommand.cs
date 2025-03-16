@@ -14,10 +14,10 @@ public partial class Program
 
         listWebsiteCommand.SetHandler(async () =>
         {
-            using WebsiteContext websiteContext = new();
-            var list = await websiteContext.GetWebsites();
-            foreach (var website in list)
-                Console.WriteLine(website + "\n");
+            // using WebsiteContext websiteContext = new();
+            // var list = await websiteContext.GetWebsites();
+            // foreach (var website in list)
+            //     Console.WriteLine(website + "\n");
         });
     }
 }

@@ -27,8 +27,7 @@ public partial class Server
 
     public Func<Session, Dictionary<string, object?>, string, string> PostProcess { get; set; }
 
-    private List<Website> Websites { get; set; }
-    private Dictionary<string, Website> Websites_dic { get; set; } = []; // use hashmap instead of list.
+    private Dictionary<string, Website> Websites { get; set; } = []; // use hashmap instead of list.
 
     private string PathToConfig;
 
@@ -40,21 +39,13 @@ public partial class Server
         PostProcess = DefaultPostProcess;
         Router = new(this);
 
-        Websites = [];
-
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(UnderscoredNamingConvention.Instance)
             .Build();
 
-        var yml = @"
-            id: default
-            location: /path/to/files
-            path: website/path
-            port: 8081
-            ";
-        Websites_dic = deserializer.Deserialize<Dictionary<string, Website>>(yml);
-        Console.WriteLine(Websites_dic);
-        Console.WriteLine(PathToConfig);
+        var config = File.ReadAllText(PathToConfig);
+        Websites = deserializer.Deserialize<Dictionary<string, Website>>(config);
+        Console.WriteLine(Websites[""]);
     }
 
     public Server() : this("/etc/ChandimanHttpServer/config") { }
@@ -74,7 +65,7 @@ public partial class Server
     private List<int> GetLocalHostPorts()
     {
         return Websites
-            .Select(website => website.Port)
+            .Select(website => website.Value.Port)
             .ToList();
     }
 
@@ -177,15 +168,13 @@ public partial class Server
 
         var website_path = path.RightOf("/").LeftOf("/");
 
-        // TODO: the empty path here is the temp default. this should be configurable in some way
-        var default_website = Websites
-            .Where(website => website.Path == "")
-            .First();
-
-        var website = Websites
-            .Where(website => website.Path == website_path)
-            .DefaultIfEmpty(default_website)
-            .First();
+        // TODO: '/' path here is the temp default. this should be configurable in some way or a default should not be needed
+        var default_website = Websites[""];
+        Websites.TryGetValue(website_path, out Website website);
+        if (website is null)
+        {
+            website = default_website;
+        }
 
         Session session = sessionManager.GetSession(request.RemoteEndPoint);
         OnRequest.IfNotNull(r => r!(session, context));
@@ -227,7 +216,8 @@ public partial class Server
                 if (resp.Error != ServerError.OK)
                 {
                     var (websiteId, redirect) = OnError.IfNotNullReturn((OnError) => OnError!(resp.Error));
-                    website = Websites
+                    // TODO using websiteId is not ideal. maybe change
+                    website = Websites.Values
                         .Where(website => website.Id == websiteId)
                         .First();
                     resp.Redirect = redirect;
@@ -251,7 +241,8 @@ public partial class Server
             Console.WriteLine(ex.Message);
             Console.WriteLine(ex.StackTrace);
             var (websiteId, redirect) = OnError.IfNotNullReturn((OnError) => OnError!(ServerError.ServerError));
-            website = Websites
+            // TODO maybe dont use websiteId somehow
+            website = Websites.Values
                 .Where(website => website.Id == websiteId)
                 .First();
             resp = new ResponsePacket()
@@ -413,9 +404,7 @@ public partial class Server
     /// <returns>ResponsePacket</returns>
     public ResponsePacket CustomPath(string websitepath, Session session, string filePath, Dictionary<string, object?> parms)
     {
-        var website = Websites
-            .Where(website => website.Path == websitepath)
-            .First();
+        var website = Websites[websitepath];
         return Router.Route(website, session, Router.GET, filePath, parms);
     }
 
