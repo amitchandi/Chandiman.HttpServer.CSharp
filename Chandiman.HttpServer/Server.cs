@@ -28,6 +28,7 @@ public partial class Server
     public Func<Session, Dictionary<string, object?>, string, string> PostProcess { get; set; }
 
     private List<Website> Websites { get; set; }
+    private Dictionary<string, Website> Websites_dic { get; set; } = []; // use hashmap instead of list.
 
     private string PathToConfig;
 
@@ -51,8 +52,8 @@ public partial class Server
             path: website/path
             port: 8081
             ";
-        var w = deserializer.Deserialize<Website>(yml);
-        Console.WriteLine(w);
+        Websites_dic = deserializer.Deserialize<Dictionary<string, Website>>(yml);
+        Console.WriteLine(Websites_dic);
         Console.WriteLine(PathToConfig);
     }
 

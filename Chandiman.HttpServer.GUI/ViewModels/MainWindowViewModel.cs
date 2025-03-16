@@ -14,9 +14,9 @@ public partial class MainWindowViewModel : ViewModelBase
     
     public MainWindowViewModel()
     {
-        using WebsiteContext ctx = new WebsiteContext();
-        var asd = ctx.GetWebsites().Result;
-        Websites = new ObservableCollection<Website>(asd);
+        //using WebsiteContext ctx = new WebsiteContext();
+        //var asd = ctx.GetWebsites().Result;
+        //Websites = new ObservableCollection<Website>(asd);
 
         List<Guy> guys = new List<Guy>()
         {

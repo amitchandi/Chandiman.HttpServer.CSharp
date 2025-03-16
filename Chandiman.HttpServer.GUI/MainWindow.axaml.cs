@@ -11,8 +11,8 @@ public partial class MainWindow : Window
 
     async void LoadWebsites()
     {
-        using WebsiteContext ctx = new WebsiteContext();
-        var websites = await ctx.GetWebsites();
+        //using WebsiteContext ctx = new WebsiteContext();
+        //var websites = await ctx.GetWebsites();
         
     }
 }

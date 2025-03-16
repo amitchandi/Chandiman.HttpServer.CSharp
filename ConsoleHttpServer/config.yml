@@ -1,0 +1,7 @@
+﻿# dictionary
+websites:
+  website/path:
+    id: default
+    location: /path/to/files
+    path: website/path
+    port: 8081
