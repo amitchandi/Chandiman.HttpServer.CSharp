@@ -8,7 +8,7 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     public string Greeting { get; } = "Welcome to Avalonia!";
 
-    public ObservableCollection<Website> Websites { get; }
+    public ObservableCollection<Website> Websites { get; } = new();
     
     public ObservableCollection<Guy> dsa { get; }
     
@@ -28,6 +28,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public class Guy
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = "";
     }
 }

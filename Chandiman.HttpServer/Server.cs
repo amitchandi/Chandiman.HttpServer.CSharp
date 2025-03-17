@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Chandiman.Extensions;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
+using YamlDotNet;
 
 namespace Chandiman.HttpServer;
 
@@ -39,13 +40,28 @@ public partial class Server
         PostProcess = DefaultPostProcess;
         Router = new(this);
 
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(UnderscoredNamingConvention.Instance)
-            .Build();
-
         var config = File.ReadAllText(PathToConfig);
-        Websites = deserializer.Deserialize<Dictionary<string, Website>>(config);
-        Console.WriteLine(Websites[""]);
+        try
+        {
+            var deserializer = new DeserializerBuilder()
+                .WithNamingConvention(UnderscoredNamingConvention.Instance)
+                .WithDuplicateKeyChecking()
+                .Build();
+
+            Websites = deserializer.Deserialize<Dictionary<string, Website>>(config);
+        }
+        catch (Exception ex)
+        {
+            if (ex.Message.Contains("Encountered duplicate key"))
+                Console.WriteLine(ex.Message + " in config: " + PathToConfig);
+            
+            throw new InvalidWebsiteConfigException("");
+        }
+
+        foreach (var site in Websites)
+        {
+            Console.WriteLine(site);
+        }
     }
 
     public Server() : this("/etc/ChandimanHttpServer/config") { }
@@ -170,7 +186,7 @@ public partial class Server
 
         // TODO: '/' path here is the temp default. this should be configurable in some way or a default should not be needed
         var default_website = Websites[""];
-        Websites.TryGetValue(website_path, out Website website);
+        Websites.TryGetValue(website_path, out Website? website);
         if (website is null)
         {
             website = default_website;
@@ -324,7 +340,7 @@ public partial class Server
     /// Log requests.
     /// </summary>
     public void Log(HttpListenerRequest request)
-        => Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + request.Url?.AbsoluteUri);
+        => Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " " + request.Url?.AbsoluteUri);
 
     /// <summary>
     /// Log URL parameters

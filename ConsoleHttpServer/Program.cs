@@ -14,7 +14,7 @@ internal class Program
         string websitePath = GetWebsitePath();
 
 
-        server = new("/home/toshi/config.yml");
+        server = new("D:\\Toshi\\Documents\\codecrafters\\Chandiman.HttpServer\\ConsoleHttpServer\\config.yml");
 
         server.OnError = ErrorHandler;
 
