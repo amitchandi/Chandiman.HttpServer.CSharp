@@ -12,10 +12,7 @@ internal class Program
     static void Main(string[] args)
     {
         string websitePath = GetWebsitePath();
-
-
-        server = new("D:\\Toshi\\Documents\\codecrafters\\Chandiman.HttpServer\\ConsoleHttpServer\\config.yml");
-
+        server = new("/home/toshi/Projects/Chandiman.HttpServer.CSharp/ConsoleHttpServer/config.yml");
         server.OnError = ErrorHandler;
 
         server.OnRequest = (session, context) =>

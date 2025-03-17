@@ -4,7 +4,6 @@ using System.Text.RegularExpressions;
 using Chandiman.Extensions;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
-using YamlDotNet;
 
 namespace Chandiman.HttpServer;
 
@@ -54,7 +53,7 @@ public partial class Server
         {
             if (ex.Message.Contains("Encountered duplicate key"))
                 Console.WriteLine(ex.Message + " in config: " + PathToConfig);
-            
+
             throw new InvalidWebsiteConfigException("");
         }
 
@@ -73,27 +72,21 @@ public partial class Server
     {
         IPHostEntry host;
         host = Dns.GetHostEntry(Dns.GetHostName());
-        List<IPAddress> ret = host.AddressList.Where(ip => ip.AddressFamily == AddressFamily.InterNetwork).ToList();
-
-        return ret;
+        return host.AddressList.Where(ip => ip.AddressFamily == AddressFamily.InterNetwork).ToList();
     }
 
-    private List<int> GetLocalHostPorts()
-    {
-        return Websites
-            .Select(website => website.Value.Port)
+    private List<int> GetPortsFromWebsites()
+        => Websites.Values
+            .Select(website => website.Port)
             .ToList();
-    }
 
     [GeneratedRegex(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")]
     private static partial Regex IPRegex();
     private static string GetExternalIP()
     {
         using HttpClient httpClient = new();
-        using var resp = httpClient.GetAsync("http://checkip.dyndns.org/").Result;
-
-
-        return IPRegex().Matches(resp.Content.ReadAsStringAsync().Result)[0].ToString();
+        var resp = httpClient.GetStringAsync("http://checkip.dyndns.org/").Result;
+        return IPRegex().Matches(resp)[0].ToString();
     }
 
     /// <summary>
@@ -111,13 +104,23 @@ public partial class Server
         return ret;
     }
 
+    // TODO make it easier to init listener with ip:port/appName. ie.
     private HttpListener InitializeListener(List<IPAddress> localhostIPs, List<int> ports)
     {
         listener = new();
 
         foreach (var port in ports)
         {
-            string url = UrlWithPort("http://localhost", port);
+            // if 2 sites are on the same port, this will likely grabs the wrong path
+            var path = Websites.Values.Where(w => w.Port == port).Select(w => w.Path).First();
+            if (path is null)
+                continue;
+            Console.WriteLine(port + " " + path);
+
+            if (path == "/")
+                path = "";
+
+            string url = UrlWithPort("http://localhost", port) + path;
 
             try
             {
@@ -133,7 +136,7 @@ public partial class Server
             // Listen to IP address as well.
             localhostIPs.ForEach(ip =>
             {
-                url = UrlWithPort("http://" + ip.ToString(), port);
+                url = UrlWithPort("http://" + ip.ToString(), port) + path;
                 Console.WriteLine("Listening on " + url);
                 listener.Prefixes.Add(url);
             });
@@ -310,7 +313,7 @@ public partial class Server
         }
 
         List<IPAddress> localHostIPs = GetLocalHostIPs();
-        List<int> ports = GetLocalHostPorts();
+        List<int> ports = GetPortsFromWebsites();
         HttpListener listener = InitializeListener(localHostIPs, ports);
         try
         {
