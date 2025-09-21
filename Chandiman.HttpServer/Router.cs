@@ -1,4 +1,5 @@
-﻿using System.Net;
+using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using Chandiman.Extensions;
 
@@ -11,16 +12,24 @@ public class Router
     public const string PUT = "put";
     public const string DELETE = "delete";
 
-    private string WebsitePath { get; set; }
+    public char PathSeperator { get; set; }
 
     private Dictionary<string, ExtensionInfo> extFolderMap;
 
     public List<Route> routes;
     public Server serverInstance;
 
-    public Router(string websitePath, Server server)
+    public Router(Server server)
     {
-        WebsitePath = websitePath;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            PathSeperator = '/';
+        }
+        else
+        {
+            PathSeperator = '\\';
+        }
+
         serverInstance = server;
 
         routes = [];
@@ -43,7 +52,7 @@ public class Router
     /// <summary>
     /// Read in an image file and returns a ResponsePacket with the raw data.
     /// </summary>
-    private ResponsePacket ImageLoader(Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
+    private ResponsePacket ImageLoader(Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
         FileStream fStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
         BinaryReader br = new BinaryReader(fStream);
@@ -57,7 +66,7 @@ public class Router
     /// <summary>
     /// Read in what is basically a text file and return a ResponsePacket with the text UTF8 encoded.
     /// </summary>
-    private ResponsePacket FileLoader(Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
+    private ResponsePacket FileLoader(Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
         ResponsePacket ret;
 
@@ -76,16 +85,16 @@ public class Router
     }
 
     /// <summary>
-    /// Load an HTML file, taking into account missing extensions and a file-less IP/domain, 
+    /// Load an HTML file, taking into account missing extensions and a file-less IP/domain,
     /// which should default to index.html.
     /// </summary>
-    private ResponsePacket PageLoader(Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
+    private ResponsePacket PageLoader(Website website, Route? routeHandler, Session session, Dictionary<string, object?> kvParams, string fullPath, string ext, ExtensionInfo extInfo)
     {
         ResponsePacket ret;
 
-        if (fullPath == WebsitePath) // If nothing follows the domain name or IP, then default to loading index.html.
+        if (fullPath == website.Location) // If nothing follows the domain name or IP, then default to loading index.html.
         {
-            ret = Route(session, GET, "/index.html", []);
+            ret = Route(website, session, GET, "/index.html", []);
         }
         else
         {
@@ -94,9 +103,9 @@ public class Router
                 // No extension, so we make it ".html"
                 fullPath += ".html";
             }
-            
+
             // Inject the "Pages" folder into the path
-            fullPath = WebsitePath + "\\Pages" + fullPath.RightOf(WebsitePath);
+            fullPath = website.Location + PathSeperator + "Pages" + fullPath.RightOf(website.Location);
 
             if (!File.Exists(fullPath))
             {
@@ -111,7 +120,7 @@ public class Router
                 text = serverInstance.PostProcess(session, kvParams, text);
 
                 // If a custom post process callback exists, call it.
-                routeHandler.IfNotNull((r) => r!.PostProcess.IfNotNull((p) => text = p!(session, kvParams, text)));
+                routeHandler.IfNotNull((r) => r!.PostProcess.IfNotNull((p) => text = p!(website, this, session, kvParams, text)));
 
                 // Do our default post process to catch any final CSRF stuff in the fully merged document.
                 text = serverInstance.PostProcess(session, kvParams, text);
@@ -124,7 +133,7 @@ public class Router
         return ret;
     }
 
-    public ResponsePacket Route(Session session, string verb, string path, Dictionary<string, object?> kvParams)
+    public ResponsePacket Route(Website website, Session session, string verb, string path, Dictionary<string, object?> kvParams)
     {
         string ext = path.RightOfRightmostOf('.');
         ExtensionInfo? extInfo;
@@ -133,8 +142,15 @@ public class Router
 
         if (extFolderMap.TryGetValue(ext, out extInfo))
         {
-            string wpath = path.Substring(1).Replace('/', '\\'); // Strip off leading '/' and reformat as with windows path separator.
-            string fullPath = Path.Combine(WebsitePath, wpath);
+            string wpath = path.Substring(1).Replace('/', PathSeperator); // Strip off leading '/'
+            if (website.Path != "")
+                wpath = wpath.Replace(website.Path + PathSeperator, "");
+
+            string fullPath = "";
+            if (wpath == website.Path)
+                fullPath = website.Location;
+            else
+                fullPath = Path.Combine(website.Location, wpath);
 
             Route? route = routes.SingleOrDefault(r => verb == r.Verb.ToLower() && path == r.Path);
 
@@ -147,11 +163,11 @@ public class Router
                 {
                     if (!route.FilePath.IsEmpty())
                     {
-                        fullPath = Path.Combine(WebsitePath, route.FilePath);
+                        fullPath = Path.Combine(website.Location, route.FilePath);
                     }
 
                     // Respond with default content loader.
-                    ret = extInfo.Loader!(route, session, kvParams, fullPath, ext, extInfo);
+                    ret = extInfo.Loader!(website, route, session, kvParams, fullPath, ext, extInfo);
                 }
                 else
                 {
@@ -162,7 +178,7 @@ public class Router
             else
             {
                 // Attempt default behavior
-                ret = extInfo.Loader!(route, session, kvParams, fullPath, ext, extInfo);
+                ret = extInfo.Loader!(website, route, session, kvParams, fullPath, ext, extInfo);
             }
         }
         else
@@ -176,7 +192,7 @@ public class Router
     internal class ExtensionInfo
     {
         public string? ContentType { get; set; }
-        public Func<Route?, Session, Dictionary<string, object?>, string, string, ExtensionInfo, ResponsePacket>? Loader { get; set; }
+        public Func<Website, Route?, Session, Dictionary<string, object?>, string, string, ExtensionInfo, ResponsePacket>? Loader { get; set; }
     }
 }
 
@@ -188,6 +204,7 @@ public class ResponsePacket
     public Encoding? Encoding { get; set; }
     public Server.ServerError Error { get; set; }
     public HttpStatusCode? StatusCode { get; set; }
+    public int? Port { get; set; }
 
     public ResponsePacket()
     {
@@ -202,5 +219,5 @@ public class Route
     public string Path { get; set; } = "";
     public RouteHandler? Handler { get; set; }
     public string FilePath { get; set; } = "";
-    public Func<Session, Dictionary<string, object?>, string, string>? PostProcess { get; set; }
+    public Func<Website, Router, Session, Dictionary<string, object?>, string, string>? PostProcess { get; set; }
 }

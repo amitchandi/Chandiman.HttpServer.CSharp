@@ -1,37 +1,69 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using Chandiman.Extensions;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace Chandiman.HttpServer;
 
-public class Server
+public partial class Server
 {
     private HttpListener? listener { get; set; }
 
     public int maxSimultaneousConnections { get; set; } = 20;
     private Semaphore sem { get; set; }
 
-    private Router router { get; set; }
+    private Router Router { get; set; }
     private SessionManager sessionManager { get; set; }
 
     public int expirationTimeSeconds { get; set; } = 60;
 
     public Action<Session, HttpListenerContext>? OnRequest { get; set; }
 
-    public Func<ServerError, string>? OnError { get; set; }
+    public Func<ServerError, (string websiteId, string redirect)>? OnError { get; set; }
 
     public string? PublicIP { get; set; }
 
     public Func<Session, Dictionary<string, object?>, string, string> PostProcess { get; set; }
 
-    public Server(string websitePath)
+    private Dictionary<string, Website> Websites { get; set; } = []; // use hashmap instead of list.
+
+    private string PathToConfig;
+
+    public Server(string pathToConfig)
     {
+        PathToConfig = pathToConfig;
         sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
-        router = new(websitePath, this);
         sessionManager = new();
         PostProcess = DefaultPostProcess;
+        Router = new(this);
+
+        var config = File.ReadAllText(PathToConfig);
+        try
+        {
+            var deserializer = new DeserializerBuilder()
+                .WithNamingConvention(UnderscoredNamingConvention.Instance)
+                .WithDuplicateKeyChecking()
+                .Build();
+
+            Websites = deserializer.Deserialize<Dictionary<string, Website>>(config);
+        }
+        catch (Exception ex)
+        {
+            if (ex.Message.Contains("Encountered duplicate key"))
+                Console.WriteLine(ex.Message + " in config: " + PathToConfig);
+
+            throw new InvalidWebsiteConfigException("");
+        }
+
+        foreach (var site in Websites)
+        {
+            Console.WriteLine(site);
+        }
     }
+
+    public Server() : this("/etc/ChandimanHttpServer/config") { }
 
     /// <summary>
     /// Returns list of IP addresses assigned to localhost network devices, such as hardwired ethernet, wireless, etc.
@@ -40,18 +72,21 @@ public class Server
     {
         IPHostEntry host;
         host = Dns.GetHostEntry(Dns.GetHostName());
-        List<IPAddress> ret = host.AddressList.Where(ip => ip.AddressFamily == AddressFamily.InterNetwork).ToList();
-
-        return ret;
+        return host.AddressList.Where(ip => ip.AddressFamily == AddressFamily.InterNetwork).ToList();
     }
 
-    private string GetExternalIP()
-    {
-        string externalIP;
-        externalIP = (new WebClient()).DownloadString("http://checkip.dyndns.org/");
-        externalIP = (new Regex(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")).Matches(externalIP)[0].ToString();
+    private List<int> GetPortsFromWebsites()
+        => Websites.Values
+            .Select(website => website.Port)
+            .ToList();
 
-        return externalIP;
+    [GeneratedRegex(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")]
+    private static partial Regex IPRegex();
+    private static string GetExternalIP()
+    {
+        using HttpClient httpClient = new();
+        var resp = httpClient.GetStringAsync("http://checkip.dyndns.org/").Result;
+        return IPRegex().Matches(resp)[0].ToString();
     }
 
     /// <summary>
@@ -69,29 +104,43 @@ public class Server
         return ret;
     }
 
-    private HttpListener InitializeListener(List<IPAddress> localhostIPs, int port)
+    // TODO make it easier to init listener with ip:port/appName. ie.
+    private HttpListener InitializeListener(List<IPAddress> localhostIPs, List<int> ports)
     {
         listener = new();
-        string url = UrlWithPort("http://localhost", port);
 
-        try
+        foreach (var port in ports)
         {
-            listener.Prefixes.Add(url);
-            Console.WriteLine("Listening on " + url);
+            // if 2 sites are on the same port, this will likely grabs the wrong path
+            var path = Websites.Values.Where(w => w.Port == port).Select(w => w.Path).First();
+            if (path is null)
+                continue;
+            Console.WriteLine(port + " " + path);
+
+            if (path == "/")
+                path = "";
+
+            string url = UrlWithPort("http://localhost", port) + path;
+
+            try
+            {
+                listener.Prefixes.Add(url);
+                Console.WriteLine("Listening on " + url);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+                // Ignore exception, which will occur on AWG servers
+            }
+
+            // Listen to IP address as well.
+            localhostIPs.ForEach(ip =>
+            {
+                url = UrlWithPort("http://" + ip.ToString(), port) + path;
+                Console.WriteLine("Listening on " + url);
+                listener.Prefixes.Add(url);
+            });
         }
-        catch
-        {
-            // Ignore exception, which will occur on AWG servers
-        }
-
-        // Listen to IP address as well.
-        localhostIPs.ForEach(ip =>
-        {
-            url = UrlWithPort("http://" + ip.ToString(), port);
-            Console.WriteLine("Listening on " + url);
-            listener.Prefixes.Add(url);
-        });
-
         // TODO: What's listening on this port that is preventing me from adding an HTTPS listener???  This started all of a sudden after a reboot.
         // https:
         //listener.Prefixes.Add("https://localhost:4443/");
@@ -130,23 +179,32 @@ public class Server
 
         // Wait for a connection. Return to caller while we wait.
         HttpListenerContext context = await listener.GetContextAsync();
+        HttpListenerRequest request = context.Request;
 
-        Session session = sessionManager.GetSession(context.Request.RemoteEndPoint);
+        string path = request.RawUrl!.LeftOf("?"); // Only the path, not any of the parameters
+        string verb = request.HttpMethod; // get, post, delete, etc.
+        string parms = request.RawUrl!.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
+
+        var website_path = path.RightOf("/").LeftOf("/");
+
+        // TODO: '/' path here is the temp default. this should be configurable in some way or a default should not be needed
+        var default_website = Websites[""];
+        Websites.TryGetValue(website_path, out Website? website);
+        if (website is null)
+        {
+            website = default_website;
+        }
+
+        Session session = sessionManager.GetSession(request.RemoteEndPoint);
         OnRequest.IfNotNull(r => r!(session, context));
 
         // Release the semaphore so that another listener can be immediately started up.
         sem.Release();
 
-        Log(context.Request);
-
-        HttpListenerRequest request = context.Request;
+        Log(request);
 
         try
         {
-            string path = request.RawUrl!.LeftOf("?"); // Only the path, not any of the parameters
-            string verb = request.HttpMethod; // get, post, delete, etc.
-            string parms = request.RawUrl!.RightOf("?"); // Params on the URL itself follow the URL and are separated by a ?
-            
             Dictionary<string, object?> kvParams = GetKeyValues(parms); // Extract into key-value entries.
             string data = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
             Console.WriteLine(data);
@@ -160,7 +218,15 @@ public class Server
             }
             else
             {
-                resp = router!.Route(session, verb, path, kvParams);
+                if (request.Url?.Port != website.Port)
+                {
+                    resp = new ResponsePacket()
+                    {
+                        Error = ServerError.PageNotFound
+                    };
+                }
+                else
+                    resp = Router.Route(website, session, verb, path, kvParams);
 
                 // Update session last connection after getting the response,
                 // as the router itself validates session expiration only on pages requiring authentication.
@@ -168,7 +234,13 @@ public class Server
 
                 if (resp.Error != ServerError.OK)
                 {
-                    resp.Redirect = OnError.IfNotNullReturn((OnError) => OnError!(resp.Error));
+                    var (websiteId, redirect) = OnError.IfNotNullReturn((OnError) => OnError!(resp.Error));
+                    // TODO using websiteId is not ideal. maybe change
+                    website = Websites.Values
+                        .Where(website => website.Id == websiteId)
+                        .First();
+                    resp.Redirect = redirect;
+                    resp.Port = website.Port;
                 }
 
                 try
@@ -187,9 +259,15 @@ public class Server
         {
             Console.WriteLine(ex.Message);
             Console.WriteLine(ex.StackTrace);
+            var (websiteId, redirect) = OnError.IfNotNullReturn((OnError) => OnError!(ServerError.ServerError));
+            // TODO maybe dont use websiteId somehow
+            website = Websites.Values
+                .Where(website => website.Id == websiteId)
+                .First();
             resp = new ResponsePacket()
             {
-                Redirect = OnError.IfNotNullReturn((OnError) => OnError!(ServerError.ServerError))
+                Redirect = redirect,
+                Port = website.Port
             };
             Respond(context.Request, context.Response, resp);
         }
@@ -223,6 +301,9 @@ public class Server
     /// </summary>
     public void Start(int port = 80, bool acquirePublicIP = false)
     {
+        if (!Websites.Any()) // TODO better Exception message
+            throw new Exception("Websites must not be empty. You can add a website editing config");
+
         OnError.IfNull(() => Console.WriteLine("Warning - the onError callback has not been initialized by the application."));
 
         if (acquirePublicIP)
@@ -231,10 +312,17 @@ public class Server
             Console.WriteLine("public IP: " + PublicIP);
         }
 
-
         List<IPAddress> localHostIPs = GetLocalHostIPs();
-        HttpListener listener = InitializeListener(localHostIPs, port);
-        Start(listener);
+        List<int> ports = GetPortsFromWebsites();
+        HttpListener listener = InitializeListener(localHostIPs, ports);
+        try
+        {
+            Start(listener);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+        }
     }
 
     /// <summary>
@@ -255,18 +343,14 @@ public class Server
     /// Log requests.
     /// </summary>
     public void Log(HttpListenerRequest request)
-    {
-        Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + request.Url?.AbsoluteUri.RightOf('/', 3));
-    }
+        => Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " " + request.Url?.AbsoluteUri);
 
     /// <summary>
     /// Log URL parameters
     /// </summary>
     /// <param name="kv"></param>
     private void Log(Dictionary<string, object?> kv)
-    {
-        kv.ForEach(kvp => Console.WriteLine(kvp.Key + " : " + kvp.Value));
-    }
+        => kv.ForEach(kvp => Console.WriteLine(kvp.Key + " : " + kvp.Value));
 
     /// <summary>
     /// Handle HttpListener Response
@@ -291,19 +375,12 @@ public class Server
         else
         {
             response.StatusCode = (int)HttpStatusCode.Redirect;
-
-            if (string.IsNullOrEmpty(PublicIP))
-            {
-                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + resp.Redirect;
-                response.Redirect(redirectUrl);
-            }
-            else
-            {
-                string redirectUrl = request!.Url!.Scheme + "://" + request!.Url!.Host + resp.Redirect;
-                response.Redirect(redirectUrl);
-            }
+            // TODO: maybe rework OnError.
+            // Check if response packet has Port. This is for redirecting errors from other websites to website with error pages.
+            string redirectUrl = request.Url!.Scheme + "://" + request.Url.Host + ":" + (resp.Port ?? request.Url.Port) + resp.Redirect;
+            response.Redirect(redirectUrl);
         }
-        
+
         response.OutputStream.Close();
     }
 
@@ -324,7 +401,7 @@ public class Server
     /// Add <paramref name="route"/> to routes
     /// </summary>
     /// <param name="route"></param>
-    public void AddRoute(Route route) => router.AddRoute(route);
+    public void AddRoute(Route route) => Router.AddRoute(route);
 
     /// <summary>
     /// Return a ResponsePacket with the specified URL and an optional (singular) parameter.
@@ -344,9 +421,10 @@ public class Server
     /// <param name="filePath">path to file</param>
     /// <param name="parms">URL paramaters</param>
     /// <returns>ResponsePacket</returns>
-    public ResponsePacket CustomPath(Session session, string filePath, Dictionary<string, object?> parms)
+    public ResponsePacket CustomPath(string websitepath, Session session, string filePath, Dictionary<string, object?> parms)
     {
-        return router.Route(session, Router.GET, filePath, parms);
+        var website = Websites[websitepath];
+        return Router.Route(website, session, Router.GET, filePath, parms);
     }
 
     public const string ValidationTokenScript = "<%AntiForgeryToken%>";
